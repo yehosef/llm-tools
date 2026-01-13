@@ -88,10 +88,6 @@ This is a **skill** (not a command wrapper). It provides Claude with knowledge a
 
 Claude then uses this knowledge + Bash to invoke the tools as needed.
 
-## Why Not Commands?
-
-Commands like `/ask-gemini` would just be wrappers around Bash calls. The skill approach is more flexible - Claude decides how to invoke the tools based on your request.
-
 ## File Structure
 
 ```
@@ -110,4 +106,4 @@ llm-tools/
 
 ## License
 
-MIT
+BSD-3-Clause
