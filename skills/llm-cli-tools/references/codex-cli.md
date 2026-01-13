@@ -10,85 +10,91 @@ brew install --cask codex
 
 ## Authentication
 
-First run prompts for login:
-- ChatGPT account login, OR
-- OpenAI API key (set `OPENAI_API_KEY`)
+Run `codex login` or set `OPENAI_API_KEY` environment variable.
 
 ## Non-Interactive Usage
 
-### Execute a Prompt
 ```bash
+# Execute prompt non-interactively
 codex exec "Your prompt here"
-```
+codex e "Your prompt here"  # alias
 
-This is the primary non-interactive mode. The `exec` subcommand runs the prompt and exits.
-
-## Key Subcommands
-
-| Command | Description |
-|---------|-------------|
-| `codex` | Interactive TUI mode |
-| `codex exec "prompt"` | Non-interactive execution |
-| `codex review` | Code review mode |
-| `codex login` | Manage authentication |
-| `codex resume` | Resume previous session |
-| `codex apply` | Apply latest diff from agent |
-
-## Common Use Cases
-
-### Code Review
-```bash
-codex exec "Review this code for bugs and security issues:
-
-$(cat src/main.py)"
-```
-
-### Find Patterns Claude Might Miss
-```bash
-codex exec "What patterns or improvements would you suggest for this code?
-
-$(cat src/app.py)"
-```
-
-### Get OpenAI Perspective
-```bash
-codex exec "What are the tradeoffs of this approach from an engineering perspective?
-
-$(cat approach.md)"
-```
-
-### Non-Interactive Code Review
-```bash
+# Code review mode
 codex review
+
+# With specific model
+codex exec -m o3 "prompt"
+codex exec -m gpt-4o "prompt"
+
+# Full auto mode (workspace-write sandbox, minimal prompts)
+codex exec --full-auto "prompt"
+
+# With image input
+codex exec -i screenshot.png "What's in this image?"
 ```
 
-## Strengths
+## All Options
 
-- **Strong at code patterns** - Different model architecture
-- **Good at finding bugs** - Different perspective than Claude
-- **Integrated with OpenAI ecosystem** - Access to GPT-4o, o1 models
+| Flag | Description |
+|------|-------------|
+| `-m, --model <model>` | Model to use (o3, gpt-4o, etc.) |
+| `-s, --sandbox <mode>` | `read-only`, `workspace-write`, `danger-full-access` |
+| `-a, --ask-for-approval <policy>` | `untrusted`, `on-failure`, `on-request`, `never` |
+| `--full-auto` | Convenience: `-a on-request --sandbox workspace-write` |
+| `-i, --image <file>` | Attach image(s) to prompt |
+| `-C, --cd <dir>` | Set working directory |
+| `--add-dir <dir>` | Additional writable directories |
+| `--search` | Enable web search tool |
+| `-c, --config <key=value>` | Override config values |
+| `--oss` | Use local model (LM Studio/Ollama) |
+| `--local-provider <provider>` | `lmstudio` or `ollama` |
+| `-p, --profile <name>` | Use config profile |
 
-## Platform Support
+## Commands
 
-- macOS: Full support
-- Linux: Full support
-- Windows: Via WSL only (experimental)
+```bash
+codex exec "prompt"     # Non-interactive execution
+codex review            # Code review mode
+codex login             # Authenticate
+codex logout            # Remove credentials
+codex resume            # Resume previous session
+codex apply             # Apply latest diff as git apply
+codex sandbox           # Run in sandbox
+codex mcp               # MCP server management
+```
 
-## Usage Limits
+## Sandbox Modes
 
-- Depends on OpenAI account type
-- Check usage: https://platform.openai.com/account/usage
-- No direct CLI command for remaining credits
+- `read-only` - Can only read files (safest)
+- `workspace-write` - Can write to workspace
+- `danger-full-access` - Full system access (dangerous)
 
-## Error Handling
+## Approval Policies
 
-- **Not logged in**: Run `codex login` or `codex` to authenticate
-- **API key issues**: Check OPENAI_API_KEY is set
-- **Rate limits**: Wait and retry
+- `untrusted` - Only trusted commands run without approval
+- `on-failure` - Ask only if command fails
+- `on-request` - Model decides when to ask
+- `never` - Never ask (dangerous)
 
-## Differences from Claude
+## Available Models
 
-- Uses GPT-4o or o1 models (not Claude)
-- Different reasoning patterns
-- May catch issues Claude misses, and vice versa
-- Good for cross-validation
+- `o3`, `o3-mini` - OpenAI reasoning models
+- `gpt-4o` - GPT-4 Omni
+- `gpt-5.2-codex` - Latest Codex model
+- Check config for current default
+
+## Common Patterns
+
+```bash
+# Quick code review
+codex exec "Review this for bugs: $(cat main.py)"
+
+# With specific model
+codex exec -m o3 "Optimize this algorithm: $(cat algo.py)"
+
+# Full auto for scripting
+codex exec --full-auto "Fix the tests in this file: $(cat test.py)"
+
+# Safe read-only analysis
+codex exec -s read-only "Analyze the architecture of this codebase"
+```

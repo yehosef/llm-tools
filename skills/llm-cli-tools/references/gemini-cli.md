@@ -8,96 +8,74 @@ npm install -g @google/gemini-cli
 
 ## Authentication
 
-Two options:
-1. **Google Login** (recommended for personal use):
-   - Run `gemini` and follow login prompts
-   - Free tier: 60 req/min, 1000 req/day
-
-2. **API Key**:
-   - Get key from Google AI Studio
-   - Set `GEMINI_API_KEY` environment variable
+1. **Google Login** (recommended): Run `gemini` and follow prompts. Free tier: 60 req/min, 1000 req/day
+2. **API Key**: Set `GEMINI_API_KEY` environment variable
 
 ## Non-Interactive Usage
 
-### Basic Usage
 ```bash
+# Basic - positional prompt (preferred)
 gemini "Your prompt here"
-```
 
-### With Model Selection
-```bash
-gemini -m gemini-2.0-flash "prompt"   # Fast, default
-gemini -m gemini-2.0-pro "prompt"     # More capable
-```
+# With model selection
+gemini -m gemini-2.0-flash "prompt"
+gemini -m gemini-2.0-pro "prompt"
 
-### Headless/Script Mode
-```bash
-gemini "prompt" --output-format json
-```
+# JSON output for parsing
+gemini -o json "prompt"
 
-### YOLO Mode (Auto-approve all actions)
-```bash
+# YOLO mode - auto-approve all tool actions
 gemini -y "prompt"
 gemini --yolo "prompt"
+gemini --approval-mode yolo "prompt"
 ```
 
-## Key Flags
+## All Options
 
 | Flag | Description |
 |------|-------------|
-| `-m, --model` | Model to use |
+| `-m, --model <model>` | Model to use |
+| `-o, --output-format <format>` | Output: `text`, `json`, `stream-json` |
 | `-y, --yolo` | Auto-approve all actions |
-| `--output-format` | Output format: json for structured |
-| `-i, --prompt-interactive` | Execute prompt then stay interactive |
+| `--approval-mode <mode>` | `default`, `auto_edit`, `yolo` |
 | `-s, --sandbox` | Run in sandbox mode |
-| `--approval-mode` | default, auto_edit, or yolo |
+| `-i, --prompt-interactive` | Execute prompt then continue interactive |
+| `-r, --resume <session>` | Resume session: `latest` or index number |
+| `--list-sessions` | List available sessions |
+| `-d, --debug` | Debug mode |
+| `--allowed-tools <tools>` | Tools allowed without confirmation |
+| `--include-directories <dirs>` | Additional workspace directories |
+| `-e, --extensions <list>` | Extensions to use |
+| `-l, --list-extensions` | List available extensions |
 
-## In-CLI Commands
+## Commands
 
-If running interactively:
-- `/help` - Show help
-- `/clear` - Clear screen
-- `/compress` - Summarize context to save tokens
-- `/copy` - Copy last output
-- `/settings` - Configure behavior
-
-## Common Use Cases
-
-### Validate a Plan (Large Context)
 ```bash
-gemini "Review this implementation plan. What issues or blind spots do you see?
-
-$(cat plan.md)"
+gemini mcp              # Manage MCP servers
+gemini extensions       # Manage extensions
 ```
 
-### Research/Analysis
-```bash
-gemini "Analyze this codebase structure and suggest improvements:
+## Available Models
 
-$(find src -name '*.py' -exec head -20 {} \;)"
-```
-
-### Get Alternative Perspective
-```bash
-gemini "What would be a different approach to solve this problem?
-
-$(cat problem.md)"
-```
+- `gemini-2.0-flash` - Fast, default
+- `gemini-2.0-pro` - More capable
+- Check latest: `gemini --help`
 
 ## Strengths
 
-- **1M token context window** - Can handle very large inputs
-- **Good at research tasks** - Different training data than Claude
-- **Free tier available** - 1000 requests/day with Google login
+- **1M token context window** - largest available
+- **Free tier** - 1000 req/day with Google login
+- **Good at research/analysis** - different training data than Claude
 
-## Usage Limits
+## Common Patterns
 
-- Free tier: 60 req/min, 1000 req/day
-- Check usage in Google Cloud Console or AI Studio
-- No direct CLI command for usage stats
+```bash
+# Validate a plan
+gemini "Review this plan for issues: $(cat plan.md)"
 
-## Error Handling
+# Get JSON output
+gemini -o json "List 3 improvements for: $(cat code.py)"
 
-- **Not authenticated**: Run `gemini` interactively to login
-- **Rate limit**: Wait a minute, or use API key for higher limits
-- **Model not found**: Check available models with `gemini --help`
+# Auto-approve for scripting
+gemini -y "Refactor this: $(cat file.py)"
+```

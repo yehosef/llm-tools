@@ -8,73 +8,106 @@ npm install -g @anthropic-ai/claude-code
 
 ## Authentication
 
-Claude CLI uses your existing Claude Code authentication or API key:
-- Interactive login: Run `claude` and use `/login`
-- API key: Set `ANTHROPIC_API_KEY` environment variable
+Run `claude` interactively and use `/login`, or set `ANTHROPIC_API_KEY`.
 
 ## Non-Interactive Usage
 
-### Basic Print Mode
 ```bash
+# Print mode - execute and exit
 claude -p "Your prompt here"
+
+# With model selection
+claude -p "prompt" --model opus
+claude -p "prompt" --model sonnet
+claude -p "prompt" --model haiku
+
+# Full model names also work
+claude -p "prompt" --model claude-sonnet-4-5-20250929
+
+# JSON output
+claude -p "prompt" --output-format json
+
+# Structured output with schema
+claude -p "List 3 bugs" --json-schema '{"type":"array","items":{"type":"string"}}'
+
+# From stdin
+cat file.py | claude -p "Review this code"
+
+# With budget limit
+claude -p "prompt" --max-budget-usd 1.00
+
+# Custom system prompt
+claude -p "prompt" --system-prompt "You are a security expert"
 ```
 
-### With Model Selection
-```bash
-claude -p "prompt" --model opus    # Claude Opus (most capable)
-claude -p "prompt" --model sonnet  # Claude Sonnet (balanced)
-claude -p "prompt" --model haiku   # Claude Haiku (fastest)
-```
-
-### Reading from Stdin
-```bash
-cat code.py | claude -p "Review this code"
-echo "Explain this" | claude -p
-```
-
-### Output Formats
-```bash
-claude -p "prompt" --output-format text   # Default
-claude -p "prompt" --output-format json   # Structured JSON
-```
-
-## Key Flags
+## All Options
 
 | Flag | Description |
 |------|-------------|
-| `-p, --print` | Print mode - non-interactive, outputs and exits |
-| `--model <model>` | Select model: opus, sonnet, haiku |
-| `--output-format <format>` | Output format: text, json, stream-json |
-| `--max-budget-usd <amount>` | Maximum spend limit |
+| `-p, --print` | Non-interactive mode (required for scripting) |
+| `--model <model>` | Model: `opus`, `sonnet`, `haiku` or full name |
+| `--output-format <format>` | `text`, `json`, `stream-json` |
+| `--json-schema <schema>` | JSON schema for structured output |
+| `--max-budget-usd <amount>` | Spending limit |
 | `--system-prompt <prompt>` | Custom system prompt |
+| `--append-system-prompt <prompt>` | Append to default system prompt |
 | `-c, --continue` | Continue most recent conversation |
+| `-r, --resume <session>` | Resume by session ID |
+| `--permission-mode <mode>` | `default`, `plan`, `acceptEdits`, `bypassPermissions`, `dontAsk` |
+| `--fallback-model <model>` | Fallback if primary overloaded |
+| `--add-dir <dirs>` | Additional directories for tool access |
+| `--allowed-tools <tools>` | Allowed tools (e.g., "Bash(git:*) Edit") |
+| `--disallowed-tools <tools>` | Denied tools |
+| `--mcp-config <config>` | MCP server configuration |
+| `-d, --debug [filter]` | Debug mode |
 
-## Common Use Cases
+## Commands
 
-### Fresh Context Validation
 ```bash
-claude -p "Review this plan for issues: $(cat plan.md)" --model opus
+claude                  # Interactive mode
+claude -p "prompt"      # Print mode
+claude doctor           # Health check
+claude mcp              # MCP management
+claude plugin           # Plugin management
+claude update           # Check for updates
 ```
 
-### Quick Code Check
+## Available Models
+
+- `opus` / `claude-opus-4-5-20251101` - Most capable
+- `sonnet` / `claude-sonnet-4-5-20250929` - Balanced
+- `haiku` / `claude-haiku-4-5-20251001` - Fastest
+
+## Permission Modes
+
+- `default` - Normal permission prompts
+- `plan` - Planning mode only
+- `acceptEdits` - Auto-accept file edits
+- `bypassPermissions` - Skip all checks (dangerous)
+- `dontAsk` - Never prompt
+
+## Common Patterns
+
 ```bash
-cat src/main.py | claude -p "Find bugs in this code" --model sonnet
+# Quick review with opus
+claude -p "Review this code: $(cat main.py)" --model opus
+
+# Structured output
+claude -p "List issues in: $(cat code.py)" --output-format json
+
+# Budget-limited task
+claude -p "Analyze this codebase" --max-budget-usd 5.00
+
+# Fresh context (no history)
+claude -p "Second opinion on: $(cat plan.md)" --model sonnet
+
+# Custom persona
+claude -p "Review for security: $(cat api.py)" --system-prompt "You are a security auditor"
 ```
 
-### Get Different Model Perspective
-```bash
-# If main conversation is sonnet, get opus opinion
-claude -p "What are the tradeoffs of this approach? $(cat approach.md)" --model opus
-```
+## Use Cases for Fresh Claude Context
 
-## Usage Limits
-
-Check usage at: https://console.anthropic.com/settings/plans
-- No CLI command to check remaining credits
-- Monitor through Anthropic dashboard
-
-## Error Handling
-
-- **Not logged in**: Run `claude` interactively, then `/login`
-- **API key issues**: Check ANTHROPIC_API_KEY is set correctly
-- **Rate limits**: Wait and retry, or reduce request size
+- Current conversation has too much context
+- Need opus-level reasoning on something specific
+- Want unbiased second opinion
+- Testing different system prompts
