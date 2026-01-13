@@ -106,4 +106,4 @@ llm-tools/
 
 ## License
 
-BSD-3-Clause
+BSD
