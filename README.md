@@ -26,7 +26,7 @@ Claude will know how to call the appropriate CLI tool and synthesize the respons
 
 ```bash
 # In Claude Code, run:
-/plugin marketplace add yourusername/llm-tools
+/plugin marketplace add yehosef/llm-tools
 /plugin install llm-tools
 ```
 
@@ -34,7 +34,7 @@ Claude will know how to call the appropriate CLI tool and synthesize the respons
 
 ```bash
 # Clone the repo
-git clone https://github.com/yourusername/llm-tools.git
+git clone https://github.com/yehosef/llm-tools.git
 
 # Symlink the skill
 ln -s /path/to/llm-tools/skills/llm-cli-tools ~/.claude/skills/llm-cli-tools
