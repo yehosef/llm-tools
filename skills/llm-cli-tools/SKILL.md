@@ -65,14 +65,6 @@ cat file.txt | claude -p "Review this code"
 **Strengths:** Fresh context (no conversation history), can use different model tier
 **When to use:** When current conversation has too much context, need opus-level reasoning on something specific
 
-## Check Tool Availability
-
-Before using a tool, verify it's installed:
-
-```bash
-which gemini codex claude 2>/dev/null
-```
-
 ## Usage Patterns
 
 ### Validate a Plan
