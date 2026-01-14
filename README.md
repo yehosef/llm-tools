@@ -93,6 +93,7 @@ Claude then uses this knowledge + Bash to invoke the tools as needed.
 ```
 llm-tools/
 ├── .claude-plugin/
+│   ├── marketplace.json         # Marketplace manifest
 │   └── plugin.json              # Plugin manifest
 ├── skills/
 │   └── llm-cli-tools/
