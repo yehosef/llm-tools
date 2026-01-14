@@ -1,0 +1,18 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "llm-tools",
+  "version": "1.0.0",
+  "description": "Use other LLM CLI tools (Gemini, Codex, Claude) for validation and second opinions",
+  "owner": {
+    "name": "yehosef",
+    "email": "yehosef@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "llm-tools",
+      "description": "Use other LLM CLI tools (Gemini, Codex, Claude) from Claude Code for validation and second opinions",
+      "source": "./",
+      "category": "development"
+    }
+  ]
+}
