@@ -22,11 +22,12 @@ Claude will know how to call the appropriate CLI tool and synthesize the respons
 
 ## Installation
 
-### Option 1: Install from GitHub (Recommended)
+### Option 1: Plugin Marketplace (Recommended)
 
 ```bash
 # In Claude Code, run:
-/plugin install yehosef/llm-tools
+/plugin marketplace add yehosef/llm-tools
+/plugin install llm-tools
 ```
 
 ### Option 2: Direct Symlink
