@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "llm-tools",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Use other LLM CLI tools (Gemini, Codex, Claude) for validation and second opinions",
   "owner": {
     "name": "yehosef",

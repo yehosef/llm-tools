@@ -1,5 +1,5 @@
 {
   "name": "llm-tools",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Use other LLM CLI tools (Gemini, Codex, Claude) from Claude Code for validation and second opinions"
 }
