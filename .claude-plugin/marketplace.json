@@ -1,8 +1,8 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "llm-tools",
-  "version": "1.1.0",
-  "description": "Use other LLM CLI tools (Gemini, Codex, Claude) for validation and second opinions",
+  "version": "2.1.0",
+  "description": "Multi-model LLM orchestration - route tasks to the right model, run in parallel, synthesize results",
   "owner": {
     "name": "yehosef",
     "email": "yehosef@gmail.com"
@@ -10,7 +10,7 @@
   "plugins": [
     {
       "name": "llm-tools",
-      "description": "Use other LLM CLI tools (Gemini, Codex, Claude) from Claude Code for validation and second opinions",
+      "description": "Multi-model LLM orchestration - route tasks to the right model, run in parallel, synthesize results",
       "source": "./",
       "category": "development"
     }
