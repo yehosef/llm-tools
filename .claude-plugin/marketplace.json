@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "llm-tools",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Multi-model LLM orchestration - route tasks to the right model, run in parallel, synthesize results",
   "owner": {
     "name": "yehosef",
