@@ -2,11 +2,9 @@
 
 ## Installation
 
-```bash
-npm install -g @openai/codex
-# or
-brew install --cask codex
-```
+See [README.md](../../../README.md#prerequisites) for installation instructions.
+
+Quick: `npm install -g @openai/codex` or `brew install --cask codex`
 
 ## Authentication
 
@@ -76,12 +74,17 @@ codex mcp               # MCP server management
 - `on-request` - Model decides when to ask
 - `never` - Never ask (dangerous)
 
-## Available Models
+## Available Models (Updated 2026-01)
 
-- `o3`, `o3-mini` - OpenAI reasoning models
+**Best for Code Review:**
+- `gpt-5.2-codex` - **Recommended** - Latest Codex, based on GPT-5 (confirmed working)
+- `o3` - OpenAI reasoning model (may require specific access)
+
+**General Purpose:**
 - `gpt-4o` - GPT-4 Omni
-- `gpt-5.2-codex` - Latest Codex model
-- Check config for current default
+- `o3-mini` - Lighter reasoning model
+
+**Note:** `gpt-5.2-codex` is the most capable for code review tasks. Use `-m gpt-5.2-codex` for best results.
 
 ## Common Patterns
 
@@ -98,3 +101,22 @@ codex exec --full-auto "Fix the tests in this file: $(cat test.py)"
 # Safe read-only analysis
 codex exec -s read-only "Analyze the architecture of this codebase"
 ```
+
+## Troubleshooting
+
+### Authentication Errors
+- **"Not authenticated"**: Run `codex login` to authenticate with OpenAI
+- **"API key invalid"**: Check `OPENAI_API_KEY` environment variable
+- **"Rate limit exceeded"**: Wait and retry, or check OpenAI usage limits
+
+### Common Issues
+- **Command not found**: Run `npm install -g @openai/codex` or `brew install --cask codex`
+- **Model not available**: Some models (o3) may require specific API access. Try `gpt-4o` as fallback
+- **Sandbox permission denied**: Adjust `-s` sandbox mode or use `--add-dir` for additional access
+
+### Rate Limits
+- Rate limits vary by OpenAI tier. Check platform.openai.com for your quota
+- o3 and gpt-5 models may have stricter limits than gpt-4o
+
+### Fallback Strategy
+If Codex is unavailable, try Claude with `--model opus` for similar code review quality, or Gemini for speed.

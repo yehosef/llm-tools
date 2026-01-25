@@ -15,11 +15,19 @@ Invoke external LLM CLIs for validation and second opinions.
 
 ## Quick Reference
 
-| Tool | Command | Best For |
-|------|---------|----------|
-| Gemini | `gemini "prompt"` | Large context (1M tokens), research |
-| Codex | `codex exec "prompt"` | Code review, OpenAI perspective |
-| Claude | `claude -p "prompt"` | Fresh context, different model tier |
+| Tool | Command | Best Model | Best For |
+|------|---------|------------|----------|
+| Gemini | `gemini "prompt"` | default (Gemini 3 Flash) | Large context (1M tokens), research |
+| Codex | `codex exec -m gpt-5.2-codex "prompt"` | `gpt-5.2-codex` | Code review, GPT-5 reasoning |
+| Claude | `claude -p "prompt" --model opus` | `opus` | Thorough security analysis |
+
+## Best Models for Code Review (2026-01)
+
+| Tool | Quality Model | Fast Model |
+|------|---------------|------------|
+| **Gemini** | `-m gemini-3-pro` | default (Gemini 3 Flash) |
+| **Codex** | `-m gpt-5.2-codex` | `-m gpt-4o` |
+| **Claude** | `--model opus` | `--model sonnet` |
 
 ## Basic Usage
 

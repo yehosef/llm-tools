@@ -2,9 +2,9 @@
 
 ## Installation
 
-```bash
-npm install -g @google/gemini-cli
-```
+See [README.md](../../../README.md#prerequisites) for installation instructions.
+
+Quick: `npm install -g @google/gemini-cli`
 
 ## Authentication
 
@@ -55,11 +55,21 @@ gemini mcp              # Manage MCP servers
 gemini extensions       # Manage extensions
 ```
 
-## Available Models
+## Available Models (Updated 2026-01)
 
-- `gemini-2.0-flash` - Fast, default
-- `gemini-2.0-pro` - More capable
-- Check latest: `gemini --help`
+**Current Generation (Gemini 3):**
+- `gemini-3-flash` - **Recommended** - Fast, current default (1M token context)
+- `gemini-3-pro` - Most capable reasoning model
+
+**Previous Generation (Gemini 2.5):**
+- `gemini-2.5-pro` - Production stable, complex reasoning
+- `gemini-2.5-flash` - Fast production model
+
+**Legacy (Gemini 2.0):**
+- `gemini-2.0-flash` - Budget/legacy support
+- `gemini-2.0-flash-lite` - Ultra-efficient
+
+**Note:** Default model (no -m flag) uses Gemini 3 Flash. Some model names may require API access vs free tier. Check `gemini --help` for currently available models.
 
 ## Strengths
 
@@ -79,3 +89,22 @@ gemini -o json "List 3 improvements for: $(cat code.py)"
 # Auto-approve for scripting
 gemini -y "Refactor this: $(cat file.py)"
 ```
+
+## Troubleshooting
+
+### Authentication Errors
+- **"Not authenticated"**: Run `gemini` interactively and login with Google
+- **"API key invalid"**: Check `GEMINI_API_KEY` environment variable
+- **"Quota exceeded"**: Wait for rate limit reset (60 req/min, 1000 req/day on free tier)
+
+### Common Issues
+- **Command not found**: Run `npm install -g @google/gemini-cli`
+- **Model not available**: Some models require API key access vs free tier. Try default model first
+- **Timeout on large prompts**: 1M context is large but still has processing limits
+
+### Rate Limits
+- Free tier: 60 requests/minute, 1000 requests/day
+- API key tier: Check Google AI Studio for your quota
+
+### Fallback Strategy
+If Gemini is unavailable, try Claude with `--model sonnet` for similar speed, or Codex with `-m gpt-4o`.

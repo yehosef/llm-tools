@@ -1,5 +1,9 @@
 {
   "name": "llm-tools",
   "version": "1.1.0",
-  "description": "Use other LLM CLI tools (Gemini, Codex, Claude) from Claude Code for validation and second opinions"
+  "description": "Use other LLM CLI tools (Gemini, Codex, Claude) from Claude Code for validation and second opinions",
+  "repository": "https://github.com/yehosef/llm-tools",
+  "author": "yehosef",
+  "license": "BSD",
+  "keywords": ["llm", "gemini", "codex", "claude", "validation", "multi-model"]
 }

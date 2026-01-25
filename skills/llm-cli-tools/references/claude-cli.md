@@ -2,9 +2,9 @@
 
 ## Installation
 
-```bash
-npm install -g @anthropic-ai/claude-code
-```
+See [README.md](../../../README.md#prerequisites) for installation instructions.
+
+Quick: `npm install -g @anthropic-ai/claude-code`
 
 ## Authentication
 
@@ -72,11 +72,21 @@ claude plugin           # Plugin management
 claude update           # Check for updates
 ```
 
-## Available Models
+## Available Models (Updated 2026-01)
 
-- `opus` / `claude-opus-4-5-20251101` - Most capable
-- `sonnet` / `claude-sonnet-4-5-20250929` - Balanced
-- `haiku` / `claude-haiku-4-5-20251001` - Fastest
+**Best for Code Review:**
+- `opus` - **Recommended** - Most capable, thorough analysis
+- Full name: `claude-opus-4-5-20251101`
+
+**Balanced:**
+- `sonnet` - Good balance of speed/quality
+- Full name: `claude-sonnet-4-5-20250929`
+
+**Fast:**
+- `haiku` - Fastest, good for simple tasks
+- Full name: `claude-haiku-4-5-20251001`
+
+**Note:** For security reviews, always use `opus` for maximum thoroughness.
 
 ## Permission Modes
 
@@ -111,3 +121,22 @@ claude -p "Review for security: $(cat api.py)" --system-prompt "You are a securi
 - Need opus-level reasoning on something specific
 - Want unbiased second opinion
 - Testing different system prompts
+
+## Troubleshooting
+
+### Authentication Errors
+- **"Not authenticated"**: Run `claude` interactively and use `/login`
+- **"API key invalid"**: Check `ANTHROPIC_API_KEY` environment variable
+- **"Rate limit exceeded"**: Wait and retry, or reduce request frequency
+
+### Common Issues
+- **Command not found**: Run `npm install -g @anthropic-ai/claude-code`
+- **Model not available**: Verify model name (use `opus`, `sonnet`, or `haiku`)
+- **Budget exceeded**: Increase `--max-budget-usd` or start new session
+
+### Rate Limits
+- Rate limits vary by API tier. Check console.anthropic.com for your quota
+- Use `--max-budget-usd` to control spending per request
+
+### Fallback Strategy
+If Claude is unavailable, try Gemini with default model for speed, or Codex with `-m gpt-5.2-codex` for quality.
