@@ -5,9 +5,34 @@ description: Multi-model LLM orchestration - route tasks to the right model, run
 
 # Multi-Model LLM Orchestration
 
-Coordinate Gemini, Codex, and Claude for complex tasks.
+Coordinate Gemini, Codex, and Claude CLI tools.
 
-## When to Use
+## Quick Start (Simple Usage)
+
+Most requests are simple - just run the models and show results:
+
+```bash
+# "Review this with Gemini"
+gemini "Review this code:" < file.py
+
+# "Check with Codex"
+codex exec "Review this code:" < file.py
+
+# "Review with Gemini and Codex" (parallel)
+gemini "Review:" < file.py > /tmp/g.txt &
+codex exec "Review:" < file.py > /tmp/c.txt &
+wait
+cat /tmp/g.txt /tmp/c.txt
+
+# "Get a second opinion with Claude"
+claude -p "Review:" --model sonnet < file.py
+```
+
+**That's it for simple requests.** Advanced patterns (routing, escalation, consensus) are below for complex tasks.
+
+---
+
+## When to Use Advanced Patterns
 
 - Complex tasks benefiting from multiple perspectives
 - Specific models have clear advantages (see routing table)
