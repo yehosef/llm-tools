@@ -47,6 +47,8 @@ codex exec -i screenshot.png "What's in this image?"
 | `--oss` | Use local model (LM Studio/Ollama) |
 | `--local-provider <provider>` | `lmstudio` or `ollama` |
 | `-p, --profile <name>` | Use config profile |
+| `--json` | Output events as JSONL |
+| `--output-schema <file>` | JSON Schema for structured response |
 
 ## Commands
 
@@ -74,32 +76,40 @@ codex mcp               # MCP server management
 - `on-request` - Model decides when to ask
 - `never` - Never ask (dangerous)
 
-## Available Models (Updated 2026-01)
+## Available Models
 
-**Best for Code Review:**
-- `gpt-5.2-codex` - **Recommended** - Latest Codex, based on GPT-5 (confirmed working)
-- `o3` - OpenAI reasoning model (may require specific access)
+**Codex-Optimized:**
+- `gpt-5.2-codex` - **Default** - Latest Codex, optimized for agentic coding
+- `gpt-5.1-codex` - Previous generation
+- `codex-mini-latest` - Smaller, cost-effective
+
+**Reasoning Models:**
+- `o3` - Most capable reasoning model
+- `o4-mini` - Fast, cost-efficient reasoning
 
 **General Purpose:**
-- `gpt-4o` - GPT-4 Omni
-- `o3-mini` - Lighter reasoning model
+- `gpt-5.2` - Flagship model (supports reasoning effort: low/medium/high/xhigh)
+- `gpt-5-mini` - Smaller, faster
 
-**Note:** `gpt-5.2-codex` is the most capable for code review tasks. Use `-m gpt-5.2-codex` for best results.
+**Note:** Default (no -m) uses `gpt-5.2-codex`. Use `-m o3` for complex reasoning tasks.
 
 ## Common Patterns
 
 ```bash
-# Quick code review
-codex exec "Review this for bugs: $(cat main.py)"
+# Quick code review (stdin avoids argv limits)
+codex exec "Review this for bugs:" < main.py
 
 # With specific model
-codex exec -m o3 "Optimize this algorithm: $(cat algo.py)"
+codex exec -m o3 "Optimize this algorithm:" < algo.py
 
 # Full auto for scripting
-codex exec --full-auto "Fix the tests in this file: $(cat test.py)"
+codex exec --full-auto "Fix the tests in this file:" < test.py
 
 # Safe read-only analysis
 codex exec -s read-only "Analyze the architecture of this codebase"
+
+# JSON output for parsing
+codex exec --json "Find bugs:" < code.py
 ```
 
 ## Troubleshooting

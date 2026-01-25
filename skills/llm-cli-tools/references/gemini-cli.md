@@ -55,21 +55,20 @@ gemini mcp              # Manage MCP servers
 gemini extensions       # Manage extensions
 ```
 
-## Available Models (Updated 2026-01)
+## Available Models
 
-**Current Generation (Gemini 3):**
-- `gemini-3-flash` - **Recommended** - Fast, current default (1M token context)
-- `gemini-3-pro` - Most capable reasoning model
+**Gemini 3 (Latest):**
+- `gemini-3-flash-preview` or `-m flash` - **Default** - Fast, current default (1M context)
+- `gemini-3-pro-preview` or `-m pro` - Most capable reasoning model
 
-**Previous Generation (Gemini 2.5):**
+**Gemini 2.5 (Stable):**
+- `gemini-2.5-flash` - Production stable, fast
 - `gemini-2.5-pro` - Production stable, complex reasoning
-- `gemini-2.5-flash` - Fast production model
+- `gemini-2.5-flash-lite` - Ultra-efficient, cost-optimized
 
-**Legacy (Gemini 2.0):**
-- `gemini-2.0-flash` - Budget/legacy support
-- `gemini-2.0-flash-lite` - Ultra-efficient
+**Shorthands:** Use `-m flash` or `-m pro` for latest versions.
 
-**Note:** Default model (no -m flag) uses Gemini 3 Flash. Some model names may require API access vs free tier. Check `gemini --help` for currently available models.
+**Note:** Gemini 2.0 models deprecated March 2026. Check `gemini --help` for currently available models.
 
 ## Strengths
 
@@ -80,14 +79,14 @@ gemini extensions       # Manage extensions
 ## Common Patterns
 
 ```bash
-# Validate a plan
-gemini "Review this plan for issues: $(cat plan.md)"
+# Validate a plan (stdin avoids argv limits)
+gemini "Review this plan for issues:" < plan.md
 
 # Get JSON output
-gemini -o json "List 3 improvements for: $(cat code.py)"
+gemini -o json "List 3 improvements for:" < code.py
 
 # Auto-approve for scripting
-gemini -y "Refactor this: $(cat file.py)"
+gemini -y "Refactor this:" < file.py
 ```
 
 ## Troubleshooting

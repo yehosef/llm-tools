@@ -30,8 +30,8 @@ claude -p "prompt" --output-format json
 # Structured output with schema
 claude -p "List 3 bugs" --json-schema '{"type":"array","items":{"type":"string"}}'
 
-# From stdin
-cat file.py | claude -p "Review this code"
+# From stdin (avoids argv limits on large files)
+claude -p "Review this code" < file.py
 
 # With budget limit
 claude -p "prompt" --max-budget-usd 1.00
@@ -72,21 +72,19 @@ claude plugin           # Plugin management
 claude update           # Check for updates
 ```
 
-## Available Models (Updated 2026-01)
+## Available Models
 
-**Best for Code Review:**
-- `opus` - **Recommended** - Most capable, thorough analysis
-- Full name: `claude-opus-4-5-20251101`
+**Claude 4.5 (Latest):**
+- `opus` - **Best for code review** - Claude Opus 4.5, most capable
+- `sonnet` - **Default** - Claude Sonnet 4.5, best balance of speed/quality
+- `haiku` - Claude Haiku 4.5, fastest for simple tasks
 
-**Balanced:**
-- `sonnet` - Good balance of speed/quality
-- Full name: `claude-sonnet-4-5-20250929`
+**Full Model Names:**
+- `claude-opus-4-5-20251101`
+- `claude-sonnet-4-5-20250929`
+- `claude-haiku-4-5-20251001`
 
-**Fast:**
-- `haiku` - Fastest, good for simple tasks
-- Full name: `claude-haiku-4-5-20251001`
-
-**Note:** For security reviews, always use `opus` for maximum thoroughness.
+**Note:** For security reviews, use `opus`. For speed, use `sonnet` (default).
 
 ## Permission Modes
 
@@ -99,20 +97,20 @@ claude update           # Check for updates
 ## Common Patterns
 
 ```bash
-# Quick review with opus
-claude -p "Review this code: $(cat main.py)" --model opus
+# Quick review with opus (stdin avoids argv limits)
+claude -p "Review this code:" --model opus < main.py
 
 # Structured output
-claude -p "List issues in: $(cat code.py)" --output-format json
+claude -p "List issues in:" --output-format json < code.py
 
 # Budget-limited task
 claude -p "Analyze this codebase" --max-budget-usd 5.00
 
 # Fresh context (no history)
-claude -p "Second opinion on: $(cat plan.md)" --model sonnet
+claude -p "Second opinion on:" --model sonnet < plan.md
 
 # Custom persona
-claude -p "Review for security: $(cat api.py)" --system-prompt "You are a security auditor"
+claude -p "Review for security:" --system-prompt "You are a security auditor" < api.py
 ```
 
 ## Use Cases for Fresh Claude Context
