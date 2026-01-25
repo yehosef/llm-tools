@@ -159,6 +159,75 @@ else
 fi
 ```
 
+### Complexity-Based Routing (3-Tier)
+
+Route tasks to appropriate model tier based on complexity, not just size.
+
+**Tier 1 - Fast/Cheap** (simple tasks):
+- Syntax checks, formatting, simple validation
+- Use: `gemini -m flash`, `claude --model haiku`, `codex exec`
+
+**Tier 2 - Balanced** (medium complexity):
+- Code review, refactoring suggestions, documentation
+- Use: `gemini -m pro`, `claude --model sonnet`, `codex exec -m gpt-5.2`
+
+**Tier 3 - Quality** (complex reasoning):
+- Architecture decisions, security audits, complex debugging
+- Use: `gemini -m pro`, `claude --model opus`, `codex exec -m o3`
+
+```bash
+#!/bin/bash
+# complexity_route.sh - Route based on task complexity
+
+TASK_TYPE="$1"
+PROMPT="$2"
+
+case "$TASK_TYPE" in
+  "format"|"lint"|"validate"|"simple")
+    # Tier 1: Fast/cheap
+    gemini -m flash "$PROMPT" || claude -p "$PROMPT" --model haiku
+    ;;
+  "review"|"refactor"|"document"|"medium")
+    # Tier 2: Balanced
+    claude -p "$PROMPT" --model sonnet
+    ;;
+  "security"|"architecture"|"debug"|"complex")
+    # Tier 3: Quality - use reasoning model
+    codex exec -m o3 "$PROMPT" || claude -p "$PROMPT" --model opus
+    ;;
+  *)
+    # Default: balanced
+    claude -p "$PROMPT" --model sonnet
+    ;;
+esac
+```
+
+**Auto-detect complexity** (heuristic):
+
+```bash
+detect_complexity() {
+  local prompt="$1"
+
+  # Tier 3 keywords
+  if echo "$prompt" | grep -qiE "security|vulnerability|architect|design|debug|why|explain.*complex"; then
+    echo "complex"
+    return
+  fi
+
+  # Tier 1 keywords
+  if echo "$prompt" | grep -qiE "format|lint|syntax|typo|simple|quick"; then
+    echo "simple"
+    return
+  fi
+
+  # Default: medium
+  echo "medium"
+}
+
+COMPLEXITY=$(detect_complexity "$PROMPT")
+./complexity_route.sh "$COMPLEXITY" "$PROMPT"
+```
+
 ### Quota Tracking
 
 Track usage to avoid hitting limits:
@@ -328,3 +397,76 @@ C_CONF=$(jq '.confidence' /tmp/c.json)
 echo "Gemini confidence: $G_CONF%"
 echo "Codex confidence: $C_CONF%"
 ```
+
+### Confidence Escalation
+
+If a fast model reports low confidence, automatically escalate to a more capable model.
+
+```bash
+#!/bin/bash
+# confidence_escalate.sh - Escalate on low confidence
+
+PROMPT="$1"
+THRESHOLD=${2:-70}  # Default: escalate if <70% confident
+TMPDIR=$(mktemp -d)
+trap 'rm -rf "$TMPDIR"' EXIT INT TERM
+
+# Step 1: Try fast model with confidence request
+gemini -o json "Answer this and rate your confidence 0-100:
+$PROMPT
+Respond as JSON: {\"answer\": \"...\", \"confidence\": N}" > "$TMPDIR/fast.json" 2>/dev/null
+
+CONFIDENCE=$(jq -r '.confidence // 0' "$TMPDIR/fast.json" 2>/dev/null)
+ANSWER=$(jq -r '.answer // empty' "$TMPDIR/fast.json" 2>/dev/null)
+
+# Step 2: Check confidence threshold
+if [ -n "$CONFIDENCE" ] && [ "$CONFIDENCE" -ge "$THRESHOLD" ]; then
+  echo "Fast model confident ($CONFIDENCE%): $ANSWER"
+  exit 0
+fi
+
+echo "Low confidence ($CONFIDENCE%), escalating to opus..."
+
+# Step 3: Escalate to quality model
+claude -p "$PROMPT" --model opus
+```
+
+**Multi-tier escalation chain:**
+
+```bash
+#!/bin/bash
+# escalation_chain.sh - Progressive escalation
+
+PROMPT="$1"
+THRESHOLD=70
+
+# Tier 1: Free/fast
+echo "Trying Gemini flash..."
+RESULT=$(gemini -o json "Rate confidence 0-100 and answer: $PROMPT" 2>/dev/null)
+CONF=$(echo "$RESULT" | jq -r '.confidence // 0')
+
+if [ "$CONF" -ge "$THRESHOLD" ]; then
+  echo "$RESULT" | jq -r '.answer'
+  exit 0
+fi
+
+# Tier 2: Balanced
+echo "Escalating to Sonnet (confidence was $CONF%)..."
+RESULT=$(claude -p "Rate confidence 0-100 and answer: $PROMPT" --model sonnet --output-format json 2>/dev/null)
+CONF=$(echo "$RESULT" | jq -r '.confidence // 0')
+
+if [ "$CONF" -ge "$THRESHOLD" ]; then
+  echo "$RESULT" | jq -r '.answer'
+  exit 0
+fi
+
+# Tier 3: Quality (final)
+echo "Escalating to Opus (confidence was $CONF%)..."
+claude -p "$PROMPT" --model opus
+```
+
+**When to use confidence escalation:**
+- Code review where mistakes are costly
+- Security analysis requiring thoroughness
+- Decisions with downstream impact
+- When fast models frequently say "I'm not sure"
