@@ -132,9 +132,12 @@ command -v gemini >/dev/null && gemini "prompt" || echo "Gemini not available"
 | Claude | `opus` / `sonnet` (4.6) | 200K (1M beta) | 128K / 64K |
 | Claude | `haiku` (4.5) | 200K tokens | varies |
 
-**All three tools now support ~1M context.** Gemini and Codex gpt-5.4 natively; Claude 4.6 via beta header (`context-1m-2025-08-07`).
+**All three tools now support ~1M context.** Gemini and Codex gpt-5.4 natively; Claude 4.6 via `--betas context-1m-2025-08-07`.
 
-**For large context tasks (code review, log analysis, full-repo review):** Use Gemini (free, 1M native), Codex gpt-5.4 (1M, code-specialized), or Claude with 1M beta. For multi-file review, concatenate files and use a 1M-context model rather than splitting.
+**For large context tasks (code review, log analysis, full-repo review):** Use Gemini (free, 1M native), Codex gpt-5.4 (1M, code-specialized), or Claude with 1M beta:
+```bash
+claude -p "Review:" --model opus --betas context-1m-2025-08-07 < all-source.txt
+```
 
 **Auto-routing by size:** If input fits in ~200K, any model works. Above 200K, use Gemini, Codex gpt-5.4, or Claude 1M beta.
 
@@ -142,13 +145,13 @@ command -v gemini >/dev/null && gemini "prompt" || echo "Gemini not available"
 
 All tools support session persistence - build context once, ask follow-ups without re-sending files:
 
-| Tool | Resume | List Sessions |
-|------|--------|---------------|
-| Gemini | `gemini -r latest` | `gemini --list-sessions` |
-| Codex | `codex resume` / `codex fork` | N/A (auto-saved) |
-| Claude | `claude -c` / `claude -r <id>` | N/A |
+| Tool | Resume | Fork | List Sessions |
+|------|--------|------|---------------|
+| Gemini | `gemini -r latest` | N/A | `gemini --list-sessions` |
+| Codex | `codex resume` | `codex fork` | N/A (auto-saved) |
+| Claude | `claude -c` / `claude -r <id>` | `claude -c --fork-session` | `claude -r` (picker) |
 
-**For large codebase review:** Use `gemini -i "prompt"` to load context and stay interactive, or resume later with `gemini -r latest`. Gemini retains sessions for 30 days.
+**For large codebase review:** Use `gemini -i "prompt"` to load context and stay interactive, or resume later with `gemini -r latest`. Gemini retains sessions for 30 days. Claude supports `--from-pr` to resume sessions linked to PRs.
 
 ## Quick Reference
 
@@ -164,7 +167,7 @@ All tools support session persistence - build context once, ask follow-ups witho
 |------|---------|------|-----------|
 | Gemini | `-m pro` | `-m flash` | pro |
 | Codex | `-m gpt-5.3-codex` | `-m gpt-5.4` (default) | `-m o3` |
-| Claude | `--model opus` | `--model sonnet` | opus |
+| Claude | `--model opus` | `--model sonnet` | `--model opus --effort high` |
 
 **Full model names:** Gemini: `gemini-3.1-pro-preview` (latest), `gemini-3-pro-preview`, `gemini-3-flash-preview`, `gemini-2.5-pro`, `gemini-2.5-flash`. Codex: `gpt-5.4` (default), `gpt-5.3-codex`, `o3`. Claude: `opus`, `sonnet`, `haiku`.
 

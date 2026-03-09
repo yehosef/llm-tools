@@ -8,7 +8,10 @@ Quick: `npm install -g @anthropic-ai/claude-code`
 
 ## Authentication
 
-Run `claude` interactively and use `/login`, or set `ANTHROPIC_API_KEY`.
+- Run `claude` interactively and use `/login`
+- Or set `ANTHROPIC_API_KEY` environment variable
+- `claude auth` - manage authentication
+- `claude setup-token` - set up long-lived auth token (requires Claude subscription)
 
 ## Non-Interactive Usage
 
@@ -22,7 +25,7 @@ claude -p "prompt" --model sonnet
 claude -p "prompt" --model haiku
 
 # Full model names also work
-claude -p "prompt" --model claude-sonnet-4-5-20250929
+claude -p "prompt" --model claude-sonnet-4-6
 
 # JSON output
 claude -p "prompt" --output-format json
@@ -38,6 +41,12 @@ claude -p "prompt" --max-budget-usd 1.00
 
 # Custom system prompt
 claude -p "prompt" --system-prompt "You are a security expert"
+
+# Effort level (low/medium/high)
+claude -p "prompt" --effort high
+
+# Enable 1M context window (beta)
+claude -p "prompt" --betas context-1m-2025-08-07
 ```
 
 ## All Options
@@ -46,29 +55,53 @@ claude -p "prompt" --system-prompt "You are a security expert"
 |------|-------------|
 | `-p, --print` | Non-interactive mode (required for scripting) |
 | `--model <model>` | Model: `opus`, `sonnet`, `haiku` or full name |
+| `--effort <level>` | Effort level: `low`, `medium`, `high` |
 | `--output-format <format>` | `text`, `json`, `stream-json` |
+| `--input-format <format>` | Input: `text` (default), `stream-json` |
 | `--json-schema <schema>` | JSON schema for structured output |
-| `--max-budget-usd <amount>` | Spending limit |
+| `--max-budget-usd <amount>` | Spending limit (only with `--print`) |
 | `--system-prompt <prompt>` | Custom system prompt |
 | `--append-system-prompt <prompt>` | Append to default system prompt |
 | `-c, --continue` | Continue most recent conversation |
-| `-r, --resume <session>` | Resume by session ID |
-| `--permission-mode <mode>` | `default`, `plan`, `acceptEdits`, `bypassPermissions`, `dontAsk` |
-| `--fallback-model <model>` | Fallback if primary overloaded |
+| `-r, --resume [value]` | Resume by session ID or interactive picker |
+| `--fork-session` | Fork into new session when resuming (use with `-r` or `-c`) |
+| `--from-pr [value]` | Resume session linked to a PR (by number/URL or interactive picker) |
+| `--session-id <uuid>` | Use specific session ID |
+| `--no-session-persistence` | Don't save session to disk (only with `--print`) |
+| `--permission-mode <mode>` | `default`, `plan`, `acceptEdits`, `bypassPermissions`, `dontAsk`, `auto` |
+| `--fallback-model <model>` | Fallback if primary overloaded (only with `--print`) |
 | `--add-dir <dirs>` | Additional directories for tool access |
-| `--allowed-tools <tools>` | Allowed tools (e.g., "Bash(git:*) Edit") |
+| `--allowed-tools <tools>` | Allowed tools (e.g., `"Bash(git:*) Edit"`) |
 | `--disallowed-tools <tools>` | Denied tools |
-| `--mcp-config <config>` | MCP server configuration |
-| `-d, --debug [filter]` | Debug mode |
+| `--tools <tools>` | Specify available tools: `""` (none), `"default"` (all), or tool names |
+| `--mcp-config <configs>` | MCP server config from JSON files or strings (space-separated) |
+| `--strict-mcp-config` | Only use MCP servers from `--mcp-config`, ignore all others |
+| `--agent <agent>` | Agent for the current session |
+| `--agents <json>` | Define custom agents as JSON |
+| `--betas <betas>` | Beta headers for API requests (API key users only) |
+| `--chrome` / `--no-chrome` | Enable/disable Chrome integration |
+| `--settings <file-or-json>` | Additional settings from file or JSON string |
+| `--setting-sources <sources>` | Setting sources to load: `user`, `project`, `local` |
+| `--plugin-dir <paths>` | Load plugins from directories (repeatable) |
+| `--disable-slash-commands` | Disable all skills |
+| `-w, --worktree [name]` | Create git worktree for this session |
+| `--tmux` | Create tmux session for worktree (requires `--worktree`) |
+| `--verbose` | Override verbose mode from config |
+| `-d, --debug [filter]` | Debug mode with optional category filter |
+| `--debug-file <path>` | Write debug logs to file |
 
 ## Commands
 
 ```bash
 claude                  # Interactive mode
 claude -p "prompt"      # Print mode
+claude agents           # List configured agents
+claude auth             # Manage authentication
 claude doctor           # Health check
+claude install          # Install native build (stable, latest, or version)
 claude mcp              # MCP management
 claude plugin           # Plugin management
+claude setup-token      # Set up long-lived auth token
 claude update           # Check for updates
 ```
 
@@ -86,17 +119,53 @@ claude update           # Check for updates
 - `claude-sonnet-4-6`
 - `claude-haiku-4-5-20251001`
 
-**1M Context (Beta):** Opus 4.6 and Sonnet 4.6 support 1M token context window via the `context-1m-2025-08-07` beta header. Check if Claude CLI supports this flag.
+**1M Context (Beta):** Opus 4.6 and Sonnet 4.6 support 1M token context via `--betas context-1m-2025-08-07`.
 
 **Note:** For security reviews, use `opus`. For speed, use `sonnet` (default).
 
 ## Permission Modes
 
 - `default` - Normal permission prompts (**recommended**)
-- `plan` - Planning mode only
+- `plan` - Planning mode only (read-only)
+- `auto` - Automatic permission decisions
 - `acceptEdits` - Auto-accept file edits (use in trusted repos only)
 - `bypassPermissions` - ⚠️ Skip all checks (dangerous, avoid)
 - `dontAsk` - ⚠️ Never prompt (dangerous, avoid)
+
+## Session Management
+
+```bash
+# Continue most recent conversation
+claude -c "Follow up question"
+
+# Resume by session ID (or interactive picker)
+claude -r <session-id>
+claude -r  # Opens picker
+
+# Fork a session (new ID, preserves context)
+claude -c --fork-session "Try a different approach"
+
+# Resume from a PR
+claude --from-pr 123
+claude --from-pr  # Interactive picker
+
+# Worktree session (isolated git branch)
+claude -w my-feature "Implement the feature"
+claude -w my-feature --tmux  # With tmux pane
+```
+
+## Agents
+
+```bash
+# Use a named agent
+claude --agent reviewer
+
+# Define inline agents
+claude --agents '{"reviewer": {"description": "Reviews code", "prompt": "You are a code reviewer"}}'
+
+# List configured agents
+claude agents
+```
 
 ## Common Patterns
 
@@ -115,6 +184,18 @@ claude -p "Second opinion on:" --model sonnet < plan.md
 
 # Custom persona
 claude -p "Review for security:" --system-prompt "You are a security auditor" < api.py
+
+# High effort reasoning
+claude -p "Find subtle bugs in:" --model opus --effort high < complex.py
+
+# 1M context for large files (beta)
+claude -p "Review entire codebase:" --betas context-1m-2025-08-07 --model opus < all-source.txt
+
+# Worktree for isolated work
+claude -w feature-branch "Implement auth module"
+
+# Ephemeral session (no persistence)
+claude -p "Quick check:" --no-session-persistence < file.py
 ```
 
 ## Use Cases for Fresh Claude Context
@@ -127,7 +208,7 @@ claude -p "Review for security:" --system-prompt "You are a security auditor" < 
 ## Troubleshooting
 
 ### Authentication Errors
-- **"Not authenticated"**: Run `claude` interactively and use `/login`
+- **"Not authenticated"**: Run `claude auth` or `claude` interactively and use `/login`
 - **"API key invalid"**: Check `ANTHROPIC_API_KEY` environment variable
 - **"Rate limit exceeded"**: Wait and retry, or reduce request frequency
 
