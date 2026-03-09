@@ -74,25 +74,29 @@ claude update           # Check for updates
 
 ## Available Models
 
-**Claude 4.5 (Latest):**
-- `opus` - **Best for code review** - Claude Opus 4.5, most capable
-- `sonnet` - **Default** - Claude Sonnet 4.5, best balance of speed/quality
+**Claude 4.6 (Latest):**
+- `opus` - **Best for code review** - Claude Opus 4.6, most capable (200K context, 1M in beta, 128K output)
+- `sonnet` - **Default** - Claude Sonnet 4.6, best balance of speed/quality (200K context, 1M in beta, 64K output)
+
+**Claude 4.5:**
 - `haiku` - Claude Haiku 4.5, fastest for simple tasks
 
-**Full Model Names:**
-- `claude-opus-4-5-20251101`
-- `claude-sonnet-4-5-20250929`
+**Full Model IDs:**
+- `claude-opus-4-6`
+- `claude-sonnet-4-6`
 - `claude-haiku-4-5-20251001`
+
+**1M Context (Beta):** Opus 4.6 and Sonnet 4.6 support 1M token context window via the `context-1m-2025-08-07` beta header. Check if Claude CLI supports this flag.
 
 **Note:** For security reviews, use `opus`. For speed, use `sonnet` (default).
 
 ## Permission Modes
 
-- `default` - Normal permission prompts
+- `default` - Normal permission prompts (**recommended**)
 - `plan` - Planning mode only
-- `acceptEdits` - Auto-accept file edits
-- `bypassPermissions` - Skip all checks (dangerous)
-- `dontAsk` - Never prompt
+- `acceptEdits` - Auto-accept file edits (use in trusted repos only)
+- `bypassPermissions` - ⚠️ Skip all checks (dangerous, avoid)
+- `dontAsk` - ⚠️ Never prompt (dangerous, avoid)
 
 ## Common Patterns
 
@@ -137,4 +141,4 @@ claude -p "Review for security:" --system-prompt "You are a security auditor" < 
 - Use `--max-budget-usd` to control spending per request
 
 ### Fallback Strategy
-If Claude is unavailable, try Gemini with default model for speed, or Codex with `-m gpt-5.2-codex` for quality.
+If Claude is unavailable, try Gemini with default model for speed, or Codex with `-m gpt-5.3-codex` for quality.

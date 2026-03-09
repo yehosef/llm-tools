@@ -47,24 +47,40 @@ PROMPT="$1"
 TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT INT TERM
 
-# Each model writes to its own file (avoids clobbering)
-gemini "$PROMPT" > "$TMPDIR/gemini.txt" 2>/dev/null &
+# Wrapper: run command, save exit code
+run_model() {
+  local name="$1"; shift
+  "$@" > "$TMPDIR/$name.txt" 2>/dev/null
+  echo $? > "$TMPDIR/$name.exit"
+}
+
+run_model gemini gemini "$PROMPT" &
 PID_G=$!
-codex exec "$PROMPT" > "$TMPDIR/codex.txt" 2>/dev/null &
+run_model codex codex exec "$PROMPT" &
 PID_C=$!
-claude -p "$PROMPT" > "$TMPDIR/claude.txt" 2>/dev/null &
+run_model claude claude -p "$PROMPT" &
 PID_CL=$!
 
-# Wait for first to complete with content
+# Wait for first SUCCESS (exit 0 + non-empty output)
 while true; do
   for model in gemini codex claude; do
-    if [ -s "$TMPDIR/$model.txt" ]; then
-      echo "Winner: $model"
-      cat "$TMPDIR/$model.txt"
-      kill $PID_G $PID_C $PID_CL 2>/dev/null
-      exit 0
+    if [ -f "$TMPDIR/$model.exit" ]; then
+      EXIT_CODE=$(cat "$TMPDIR/$model.exit")
+      if [ "$EXIT_CODE" -eq 0 ] && [ -s "$TMPDIR/$model.txt" ]; then
+        echo "Winner: $model"
+        cat "$TMPDIR/$model.txt"
+        kill $PID_G $PID_C $PID_CL 2>/dev/null
+        wait 2>/dev/null
+        exit 0
+      fi
     fi
   done
+
+  # Check if all failed
+  if [ -f "$TMPDIR/gemini.exit" ] && [ -f "$TMPDIR/codex.exit" ] && [ -f "$TMPDIR/claude.exit" ]; then
+    echo "All models failed" >&2
+    exit 1
+  fi
   sleep 0.1
 done
 ```
@@ -77,9 +93,9 @@ Fast model filters, quality model analyzes.
 # Step 1: Fast filter with Gemini (free) - stdin avoids argv limits
 ISSUES=$(gemini "List potential issues in this code, one per line:" < code.py)
 
-# Step 2: If issues found, deep analysis with Claude
+# Step 2: If issues found, deep analysis with Claude (use heredoc for safety)
 if [ -n "$ISSUES" ]; then
-  claude -p "Analyze these issues in detail: $ISSUES" --model opus
+  claude -p "Analyze these issues in detail:" --model opus <<< "$ISSUES"
 else
   echo "No issues found"
 fi
@@ -103,13 +119,13 @@ gemini "Analyze:" <<< "$CONTENT"
 # Get structured output (stdin for large files)
 gemini -o json "Find bugs:" < code.py > bugs.json
 # Claude uses --output-format json
+# Note: codex --json outputs JSONL (one event per line), not single JSON
 
 # Parse with jq
 jq '.bugs[] | .severity' bugs.json
 
-# Pass to another model
-BUGS=$(cat bugs.json)
-claude -p "Prioritize these bugs: $BUGS" --model opus
+# Pass to another model (use stdin for safety)
+claude -p "Prioritize these bugs:" --model opus < bugs.json
 ```
 
 ### Passing Context Between Tools
@@ -118,11 +134,12 @@ claude -p "Prioritize these bugs: $BUGS" --model opus
 # Model A analyzes (stdin for file content)
 ANALYSIS=$(gemini "Analyze architecture:" < design.md)
 
-# Model B reviews analysis
-REVIEW=$(codex exec "Review this analysis: $ANALYSIS")
+# Model B reviews analysis (heredoc for safety)
+REVIEW=$(codex exec "Review this analysis:" <<< "$ANALYSIS")
 
-# Model C synthesizes
-claude -p "Synthesize: Analysis=$ANALYSIS Review=$REVIEW" --model opus
+# Model C synthesizes (use temp file for multiple large vars)
+{ echo "=== Analysis ==="; echo "$ANALYSIS"; echo "=== Review ==="; echo "$REVIEW"; } > /tmp/context.txt
+claude -p "Synthesize these:" --model opus < /tmp/context.txt
 ```
 
 ## Budget Optimization
@@ -135,7 +152,7 @@ RESULT=$(gemini "$PROMPT" 2>/dev/null)
 
 # Only escalate if needed
 if [ $? -ne 0 ] || [ -z "$RESULT" ]; then
-  RESULT=$(codex exec -m gpt-4o "$PROMPT")  # Cheaper than gpt-5
+  RESULT=$(codex exec "$PROMPT")  # Cheaper than gpt-5
 fi
 
 echo "$RESULT"
@@ -144,19 +161,58 @@ echo "$RESULT"
 ### Cost-Aware Routing
 
 ```bash
-# Estimate complexity
-TOKENS=$(wc -w <<< "$CONTENT")
+# Estimate token count (~0.75 tokens per word)
+WORDS=$(wc -w <<< "$CONTENT")
 
-if [ "$TOKENS" -lt 1000 ]; then
+if [ "$WORDS" -lt 1000 ]; then
   # Small content: use free Gemini
   gemini "$PROMPT"
-elif [ "$TOKENS" -lt 100000 ]; then
-  # Medium: use fast models
-  codex exec -m gpt-4o "$PROMPT"
+elif [ "$WORDS" -lt 130000 ]; then
+  # Medium (<~100K tokens): any model works
+  codex exec "$PROMPT"
 else
-  # Large: must use Gemini (1M context)
+  # Large (>100K tokens): use 1M-context models
+  # Gemini (free) or Codex gpt-5.4 (922K input)
   gemini "$PROMPT"
 fi
+```
+
+### Context-Aware Model Selection
+
+Both Gemini and Codex gpt-5.4 now support ~1M token context windows. Route large inputs accordingly:
+
+```bash
+#!/bin/bash
+# context_route.sh - Pick model based on input size
+INPUT_FILE="$1"
+PROMPT="$2"
+
+# Estimate tokens (~0.75 tokens per word, ~4 chars per token)
+CHARS=$(wc -c < "$INPUT_FILE")
+EST_TOKENS=$((CHARS / 4))
+
+if [ "$EST_TOKENS" -gt 150000 ]; then
+  # Large input: must use 1M-context model
+  echo "Large input (~${EST_TOKENS} tokens), using 1M-context model..."
+  gemini "$PROMPT" < "$INPUT_FILE" || \
+    codex exec -m gpt-5.4 "$PROMPT" < "$INPUT_FILE"
+elif [ "$EST_TOKENS" -gt 50000 ]; then
+  # Medium: prefer models with good context handling
+  codex exec "$PROMPT" < "$INPUT_FILE"
+else
+  # Small: any model works, prefer free
+  gemini "$PROMPT" < "$INPUT_FILE"
+fi
+```
+
+**For full-repo review**, concatenate relevant files and use a 1M-context model:
+
+```bash
+# Concatenate source files for full-repo review
+find src -name "*.py" -exec cat {} + > /tmp/all-src.txt
+gemini "Review this codebase for bugs and improvements:" < /tmp/all-src.txt
+# Or with Codex for code-specialized review
+codex exec -m gpt-5.4 "Review this codebase:" < /tmp/all-src.txt
 ```
 
 ### Complexity-Based Routing (3-Tier)
@@ -169,7 +225,7 @@ Route tasks to appropriate model tier based on complexity, not just size.
 
 **Tier 2 - Balanced** (medium complexity):
 - Code review, refactoring suggestions, documentation
-- Use: `gemini -m pro`, `claude --model sonnet`, `codex exec -m gpt-5.2`
+- Use: `gemini -m pro`, `claude --model sonnet`, `codex exec -m gpt-5.3-codex`
 
 **Tier 3 - Quality** (complex reasoning):
 - Architecture decisions, security audits, complex debugging
@@ -256,6 +312,69 @@ fi
 
 ## Session Patterns
 
+### Session Reuse (Keep Context Alive)
+
+All three tools support session persistence. Use this to build up codebase context once, then ask follow-up questions without re-sending files.
+
+**Gemini sessions:**
+
+```bash
+# Start a review session - Gemini learns your codebase
+gemini "Review the architecture of this project"
+
+# Later, resume the same session (keeps all context)
+gemini -r latest "Now focus on the error handling patterns"
+
+# Or resume by index or UUID
+gemini --list-sessions              # See all saved sessions
+gemini -r 3 "What about the tests?" # Resume session #3
+gemini --delete-session 5           # Clean up old sessions
+
+# Sessions retained 30 days by default
+```
+
+**Codex sessions:**
+
+```bash
+# Interactive session builds context
+codex  # Start interactive, explore codebase
+
+# Resume later with full context preserved
+codex resume
+
+# Fork a session to explore a tangent without losing the original
+codex fork
+
+# Non-interactive sessions can also be resumed
+codex exec "Review src/" && codex exec resume "Now check the tests"
+```
+
+**Claude sessions:**
+
+```bash
+# Continue most recent conversation
+claude -c "Follow up on the review"
+
+# Resume specific session by ID
+claude -r <session-id> "What about the auth module?"
+```
+
+### Session Strategy for Large Reviews
+
+Use sessions to avoid re-uploading large codebases:
+
+```bash
+# Step 1: Load codebase into session (use 1M-context model)
+find src -name "*.py" -exec cat {} + | gemini -i "Learn this codebase. Summarize the architecture."
+# -i flag: execute prompt then stay interactive for follow-ups
+
+# Step 2: Ask targeted questions within same session (context preserved)
+# (interactive mode continues, or resume later with -r latest)
+
+# Step 3: Resume days later, context still there
+gemini -r latest "Are there any race conditions in the async handlers?"
+```
+
 ### Multi-Turn with Single Model
 
 For extended conversations, use session mode:
@@ -266,6 +385,9 @@ codex  # Enters interactive mode
 
 # Claude conversation
 claude  # Starts new session with history
+
+# Gemini with initial prompt then interactive
+gemini -i "Review this project for security issues"
 ```
 
 ### Handoff Between Models
@@ -274,11 +396,11 @@ claude  # Starts new session with history
 # Start with fast model for initial analysis (stdin for file)
 INITIAL=$(gemini "Summarize:" < data.txt)
 
-# Hand off to reasoning model for deep analysis
-DEEP=$(codex exec -m o3 "Given this summary: $INITIAL, what are the implications?")
+# Hand off to reasoning model for deep analysis (heredoc for safety)
+DEEP=$(codex exec -m o3 "Given this summary, what are the implications?" <<< "$INITIAL")
 
-# Final synthesis with quality model
-claude -p "Create final report from: $DEEP" --model opus
+# Final synthesis with quality model (heredoc for safety)
+claude -p "Create final report from:" --model opus <<< "$DEEP"
 ```
 
 ### Context Preservation Across Models
@@ -296,6 +418,42 @@ echo "---" >> "$CONTEXT_FILE"
 
 # Final model sees all previous context
 claude -p "Synthesize previous analyses:" --model opus < "$CONTEXT_FILE"
+```
+
+## Web Search Grounding
+
+Both Gemini and Codex have built-in web search for real-time information.
+
+```bash
+# Gemini - Google Search grounding (built-in tool, auto-used)
+gemini "What are the latest security advisories for Django 5.x?"
+
+# Codex - web search (explicit flag)
+codex exec --search "What's the recommended way to handle auth in Next.js 15?"
+
+# Combine: research with web, then code with context
+RESEARCH=$(gemini "Latest best practices for Python async error handling")
+codex exec "Apply these practices to our code:" <<< "$RESEARCH" < async_handler.py
+```
+
+## MCP Server Sharing
+
+All three tools support MCP (Model Context Protocol) servers. Configure once, use across tools.
+
+```bash
+# Codex MCP management
+codex mcp add my-server --command "node server.js"
+codex mcp list
+codex mcp remove my-server
+
+# Gemini MCP (via extensions)
+gemini  # then /mcp to manage
+
+# Claude MCP (via config)
+claude --mcp-config mcp-servers.json -p "Use the database tool to query users"
+
+# Run Codex itself as an MCP server for other tools
+codex mcp-server  # experimental
 ```
 
 ## Error Handling
