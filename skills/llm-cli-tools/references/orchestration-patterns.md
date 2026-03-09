@@ -101,6 +101,93 @@ else
 fi
 ```
 
+## Feeding Files and Directories
+
+### Single File
+
+```bash
+# All tools accept stdin
+gemini "Review:" < file.py
+codex exec "Review:" < file.py
+claude -p "Review:" < file.py
+```
+
+### Multiple Files with Headers
+
+```bash
+# Add file headers so the model knows which file each section is from
+find src -name "*.py" -exec sh -c 'echo "=== {} ==="; cat {}' \; | gemini "Review:"
+
+# Same for specific extensions
+find . -name "*.ts" -not -path "*/node_modules/*" \
+  -exec sh -c 'echo "=== {} ==="; cat {}' \; | codex exec "Review:"
+
+# Using bash glob (simpler but less control)
+for f in src/**/*.py; do echo "=== $f ==="; cat "$f"; done | gemini "Review:"
+```
+
+### Smart File Collection
+
+```bash
+# Exclude tests, vendor, generated files
+find src -name "*.py" \
+  ! -path "*/test*" \
+  ! -path "*/vendor/*" \
+  ! -path "*/__pycache__/*" \
+  ! -name "*.generated.*" \
+  -exec sh -c 'echo "=== {} ==="; cat {}' \; > /tmp/src-bundle.txt
+
+# Check size before sending
+CHARS=$(wc -c < /tmp/src-bundle.txt)
+TOKENS=$((CHARS / 4))
+echo "Estimated: ${TOKENS} tokens"
+
+# Route to appropriate model based on size
+if [ "$TOKENS" -gt 200000 ]; then
+  echo "Large codebase, using 1M-context model..."
+  gemini "Review this codebase for bugs and improvements:" < /tmp/src-bundle.txt
+else
+  claude -p "Review this codebase:" --model opus < /tmp/src-bundle.txt
+fi
+```
+
+### Git-Aware File Selection
+
+```bash
+# Only changed files (great for PR review)
+git diff --name-only main | xargs -I{} sh -c 'echo "=== {} ==="; cat {}' | \
+  gemini "Review these changes:"
+
+# Changed files with diff context
+git diff main | codex exec "Review this diff for bugs:"
+
+# Recently modified files
+find src -name "*.py" -mtime -7 \
+  -exec sh -c 'echo "=== {} ==="; cat {}' \; | gemini "Review recent changes:"
+
+# Staged files only
+git diff --cached | claude -p "Review staged changes:" --model opus
+```
+
+### Interactive Mode (Model Explores)
+
+For large codebases, let the model browse on-demand instead of loading everything:
+
+```bash
+# Codex - full file system tools in cwd
+codex  # Then: "Review all Python files in src/ for security issues"
+
+# Gemini - has glob, grep, read_file, read_many_files, list_directory
+gemini  # Then: "Explore src/ and review the authentication module"
+
+# Claude - grant access to additional directories
+claude --add-dir /other/repo  # Then: "Compare auth implementations"
+```
+
+**When to use interactive vs piped:**
+- **Piped**: You know exactly which files to review, want automation, or need non-interactive output
+- **Interactive**: Large codebase, exploratory review, follow-up questions, or when the model should decide what to read
+
 ## Context Management
 
 ### Stdin for Large Content

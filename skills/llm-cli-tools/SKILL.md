@@ -141,6 +141,45 @@ claude -p "Review:" --model opus --betas context-1m-2025-08-07 < all-source.txt
 
 **Auto-routing by size:** If input fits in ~200K, any model works. Above 200K, use Gemini, Codex gpt-5.4, or Claude 1M beta.
 
+## Feeding Files to Models
+
+### Non-Interactive (Piped)
+
+```bash
+# Single file
+gemini "Review:" < file.py
+
+# Multiple files with headers (so the model knows which file is which)
+find src -name "*.py" -exec sh -c 'echo "=== {} ==="; cat {}' \; | gemini "Review this codebase:"
+
+# By glob pattern
+cat src/**/*.ts | codex exec "Review:"
+
+# Exclude test files, vendor, node_modules
+find src -name "*.py" ! -path "*/test*" ! -path "*/vendor/*" -exec sh -c 'echo "=== {} ==="; cat {}' \; | gemini "Review:"
+
+# With size check (estimate tokens before sending)
+CHARS=$(find src -name "*.py" -exec cat {} + | wc -c)
+echo "~$((CHARS / 4)) tokens"  # If >900K, too large even for 1M models
+```
+
+### Interactive (Let the Model Explore)
+
+In interactive mode, all three tools can browse your filesystem directly:
+
+```bash
+# Codex - runs in cwd, has full file tools
+codex  # "Review all Python files in src/"
+
+# Gemini - has glob, grep, read_file, list_directory tools
+gemini  # "Explore the src/ directory and review the code"
+
+# Claude - use --add-dir for directories outside cwd
+claude --add-dir /path/to/other/repo  # "Compare these two repos"
+```
+
+Interactive mode is better for large codebases - the model reads files on-demand instead of loading everything upfront.
+
 ## Session Reuse (Keep Context)
 
 All tools support session persistence - build context once, ask follow-ups without re-sending files:
