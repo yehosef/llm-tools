@@ -162,20 +162,23 @@ Key options:
 ## Common Patterns
 
 ```bash
-# Quick code review (stdin avoids argv limits)
-codex exec "Review this for bugs:" < main.py
+# Quick code review (embed file in prompt for small files)
+codex exec "Review this for bugs: $(cat main.py)"
+
+# For larger files: pipe prompt+file as stdin (no positional arg)
+bash -c '{ echo "Review this for bugs:"; cat main.py; } | codex exec'
 
 # With reasoning model
-codex exec -m o3 "Optimize this algorithm:" < algo.py
+codex exec -m o3 "Optimize this algorithm: $(cat algo.py)"
 
 # Full auto for scripting
-codex exec --full-auto "Fix the tests in this file:" < test.py
+codex exec --full-auto "Fix the tests in this file: $(cat test.py)"
 
 # Safe read-only analysis
 codex exec -s read-only "Analyze the architecture of this codebase"
 
 # JSON output for parsing
-codex exec --json "Find bugs:" < code.py
+bash -c '{ echo "Find bugs:"; cat code.py; } | codex exec --json'
 
 # Shell completions
 codex completion bash >> ~/.bashrc

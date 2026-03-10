@@ -12,21 +12,25 @@ Coordinate Gemini, Codex, and Claude CLI tools.
 Most requests are simple - just run the models and show results:
 
 ```bash
-# "Review this with Gemini"
+# "Review this with Gemini" (stdin works as context)
 gemini "Review this code:" < file.py
 
-# "Check with Codex"
-codex exec "Review this code:" < file.py
+# "Check with Codex" (stdin is prompt only - no file piping with positional arg!)
+codex exec "Review this code: $(cat file.py)"
+# Or pipe prompt+file as stdin (no positional arg):
+bash -c '{ echo "Review this code:"; cat file.py; } | codex exec'
 
-# "Review with Gemini and Codex" (parallel)
+# "Review with Gemini and Claude" (parallel, both support stdin)
 gemini "Review:" < file.py > /tmp/g.txt &
-codex exec "Review:" < file.py > /tmp/c.txt &
+claude -p "Review:" --model sonnet < file.py > /tmp/cl.txt &
 wait
-cat /tmp/g.txt /tmp/c.txt
+cat /tmp/g.txt /tmp/cl.txt
 
 # "Get a second opinion with Claude"
 claude -p "Review:" --model sonnet < file.py
 ```
+
+**⚠️ Codex stdin caveat:** `codex exec` reads stdin as the *prompt*, not as appended file content. `codex exec "prompt" < file.py` ignores the file. Use `codex exec "prompt: $(cat file.py)"` or interactive mode instead.
 
 **That's it for simple requests.** Advanced patterns (routing, escalation, consensus) are below for complex tasks.
 
@@ -68,9 +72,10 @@ claude -p "Review:" --model sonnet < file.py
 Run multiple models simultaneously for consensus or speed:
 
 ```bash
-# Parallel review - all 3 models (stdin avoids argv limits on large files)
+# Parallel review - Gemini and Claude support stdin, Codex needs inline content
+CODE=$(cat code.py)
 gemini "Review this code:" < code.py > /tmp/gemini.txt &
-codex exec "Review this code:" < code.py > /tmp/codex.txt &
+codex exec "Review this code: $CODE" > /tmp/codex.txt &
 claude -p "Review this code:" --model sonnet < code.py > /tmp/claude.txt &
 wait
 # Synthesize results from all three files
@@ -79,8 +84,9 @@ wait
 For structured output, use JSON mode:
 
 ```bash
+CODE=$(cat code.py)
 gemini -o json "Find bugs:" < code.py > /tmp/gemini.json &
-codex exec --json "Find bugs:" < code.py > /tmp/codex.json &
+codex exec --json "Find bugs: $CODE" > /tmp/codex.json &
 wait
 # Claude: use --output-format json
 ```
@@ -143,42 +149,46 @@ claude -p "Review:" --model opus --betas context-1m-2025-08-07 < all-source.txt
 
 ## Feeding Files to Models
 
-### Non-Interactive (Piped)
+### Stdin Support
+
+| Tool | `< file.py` works? | How to pass file content |
+|------|-------------------|------------------------|
+| Gemini | **Yes** - stdin appended as context | `gemini "Review:" < file.py` |
+| Claude | **Yes** - stdin appended as context | `claude -p "Review:" < file.py` |
+| Codex | **No** - stdin is prompt only, ignores file with positional arg | Embed in prompt or use interactive mode |
+
+### Gemini / Claude (stdin works)
 
 ```bash
 # Single file
 gemini "Review:" < file.py
+claude -p "Review:" --model opus < file.py
 
-# Multiple files with headers (so the model knows which file is which)
+# Multiple files with headers
 find src -name "*.py" -exec sh -c 'echo "=== {} ==="; cat {}' \; | gemini "Review this codebase:"
-
-# By glob pattern
-cat src/**/*.ts | codex exec "Review:"
-
-# Exclude test files, vendor, node_modules
-find src -name "*.py" ! -path "*/test*" ! -path "*/vendor/*" -exec sh -c 'echo "=== {} ==="; cat {}' \; | gemini "Review:"
 
 # With size check (estimate tokens before sending)
 CHARS=$(find src -name "*.py" -exec cat {} + | wc -c)
 echo "~$((CHARS / 4)) tokens"  # If >900K, too large even for 1M models
 ```
 
-### Interactive (Let the Model Explore)
-
-In interactive mode, all three tools can browse your filesystem directly:
+### Codex (embed content in prompt)
 
 ```bash
-# Codex - runs in cwd, has full file tools
-codex  # "Review all Python files in src/"
+# Small files: embed in prompt string
+codex exec "Review this code: $(cat file.py)"
 
-# Gemini - has glob, grep, read_file, list_directory tools
-gemini  # "Explore the src/ directory and review the code"
+# Multiple small files: concatenate into prompt
+codex exec "Review: $(find src -name '*.py' -exec cat {} +)"
 
-# Claude - use --add-dir for directories outside cwd
-claude --add-dir /path/to/other/repo  # "Compare these two repos"
+# Large files: pipe prompt+content as stdin (no positional arg)
+bash -c '{ echo "Review this code for bugs:"; cat file.py; } | codex exec'
+
+# Multiple large files via stdin
+bash -c '{ echo "Review this codebase:"; find src -name "*.py" -exec sh -c "echo === {} ===; cat {}" \;; } | codex exec'
 ```
 
-Interactive mode is better for large codebases - the model reads files on-demand instead of loading everything upfront.
+**⚠️ Codex limit:** Embedding via `$(cat)` hits shell argv limits (~256KB on macOS). For large files, pipe via stdin instead. Note: stdin piping requires bash (not fish) and no positional prompt arg.
 
 ## Session Reuse (Keep Context)
 
@@ -216,9 +226,10 @@ All tools support session persistence - build context once, ask follow-ups witho
 Ask all 3 models the same question, compare answers, flag disagreements.
 
 ```bash
-# Use stdin to avoid argv limits on large files
+# Gemini/Claude support stdin; Codex needs content in prompt
+CODE=$(cat code.py)
 gemini "Review this code for bugs:" < code.py > /tmp/g.txt &
-codex exec "Review this code for bugs:" < code.py > /tmp/c.txt &
+codex exec "Review this code for bugs: $CODE" > /tmp/c.txt &
 claude -p "Review this code for bugs:" < code.py > /tmp/cl.txt &
 wait
 ```
@@ -233,8 +244,8 @@ claude -p "Security audit:" --model opus < api.py
 # Large file analysis → Gemini
 gemini "Analyze this log:" < large-log.txt
 
-# Code optimization → Codex
-codex exec -m gpt-5.3-codex "Optimize this code:" < perf.py
+# Code optimization → Codex (embed file in prompt)
+codex exec -m gpt-5.3-codex "Optimize this code: $(cat perf.py)"
 ```
 
 ### Pattern 3: Fallback Chain
@@ -252,11 +263,11 @@ gemini "prompt" 2>/dev/null || \
 Both Gemini and Codex (gpt-5.4) support ~1M token context. Use either for large files, summarize for Claude.
 
 ```bash
-# Gemini handles large context (free tier, use stdin for large files)
+# Gemini handles large context (free tier, stdin works)
 SUMMARY=$(gemini "Summarize key points:" < huge-file.txt)
-# Or use Codex with 1M context (922K input)
-SUMMARY=$(codex exec -m gpt-5.4 "Summarize key points:" < huge-file.txt)
-# Pass summary via stdin (safer than command line for large/untrusted content)
+# Codex: use interactive mode for large files (stdin doesn't pipe file content)
+# Or embed if small enough: codex exec "Summarize: $(cat file.txt)"
+# Pass summary via stdin to Claude (safer than command line)
 claude -p "Analyze this summary:" --model opus <<< "$SUMMARY"
 ```
 
