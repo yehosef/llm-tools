@@ -3,8 +3,7 @@
 # Validates that documented patterns actually work with real tools
 # Run: bash skills/llm-cli-tools/test/validate.sh
 #
-# Note: Claude tests are skipped when run inside a Claude Code session.
-# Run from a plain terminal to test Claude too.
+# Note: Claude tests use `claude -p` which works both inside and outside Claude Code.
 
 set -uo pipefail
 
@@ -85,13 +84,8 @@ else
 fi
 
 if command -v claude >/dev/null 2>&1; then
-  if [ -n "${CLAUDECODE:-}" ]; then
-    skip "claude" "inside Claude Code session (run from plain terminal to test)"
-    HAS_CLAUDE=false
-  else
-    pass "claude installed ($(claude --version 2>&1 | head -1))"
-    HAS_CLAUDE=true
-  fi
+  pass "claude installed ($(claude --version 2>&1 | head -1))"
+  HAS_CLAUDE=true
 else
   skip "claude" "not installed"
 fi
@@ -268,10 +262,6 @@ if [ $FAIL -gt 0 ]; then
   echo -e "\nFailures:${FAILURES}"
   echo ""
   echo "⚠️  If stdin behavior changed, update the docs!"
-fi
-if [ $SKIP -gt 0 ] && [ -n "${CLAUDECODE:-}" ]; then
-  echo ""
-  echo "Note: Claude tests skipped (inside Claude Code). Run from plain terminal for full coverage."
 fi
 
 exit $FAIL
