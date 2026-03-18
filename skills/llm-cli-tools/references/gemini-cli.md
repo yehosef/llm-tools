@@ -78,11 +78,12 @@ gemini -i "initial prompt"
 **Gemini 3.1 (Latest):**
 - `gemini-3.1-pro-preview` - Latest, replaces 3.0 Pro (1M input, 64K output)
 
-**Gemini 3 (Stable):**
+**Gemini 3 (Current):**
 - `gemini-3-flash-preview` - Fast, current generation (1M input, 64K output)
-- `gemini-3-pro-preview` - ⚠️ **Deprecated March 9, 2026** - migrate to `gemini-3.1-pro-preview`
+- `gemini-3.1-flash-lite-preview` - Cheapest/fastest, 2.5x faster TTFT vs 2.5 Flash (1M input, 64K output)
+- ~~`gemini-3-pro-preview`~~ - **Deprecated March 9, 2026** - use `gemini-3.1-pro-preview`
 
-**Gemini 2.5:**
+**Gemini 2.5 (Stable, deprecating June 2026):**
 - `gemini-2.5-pro` - Production stable, complex reasoning (1M input)
 - `gemini-2.5-flash` - Production stable, fast (1M input)
 - `gemini-2.5-flash-lite` - Ultra-efficient, cost-optimized
@@ -91,7 +92,7 @@ gemini -i "initial prompt"
 
 **Context Windows:** All current models support 1M token input context. Output varies (64K for Gemini 3).
 
-**Note:** Gemini 2.0 models deprecated. `/model` does not override sub-agent model selection.
+**Note:** Gemini 2.0 models deprecated. Gemini 2.5 models scheduled for deprecation June 2026. `/model` does not override sub-agent model selection.
 
 ## Built-in Tools
 

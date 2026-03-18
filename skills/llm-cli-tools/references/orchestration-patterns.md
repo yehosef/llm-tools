@@ -316,7 +316,7 @@ Route tasks to appropriate model tier based on complexity, not just size.
 
 **Tier 2 - Balanced** (medium complexity):
 - Code review, refactoring suggestions, documentation
-- Use: `gemini -m pro`, `claude --model sonnet`, `codex exec -m gpt-5.3-codex`
+- Use: `gemini -m pro`, `claude --model sonnet`, `codex exec -m gpt-5.4`
 
 **Tier 3 - Quality** (complex reasoning):
 - Architecture decisions, security audits, complex debugging

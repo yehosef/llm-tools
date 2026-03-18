@@ -123,20 +123,22 @@ codex mcp-server       # Run Codex as MCP server (experimental)
 ## Available Models
 
 **Latest:**
-- `gpt-5.4` - **Flagship** - Latest model, 1.05M context (922K input + 128K output), native computer use
-- `gpt-5.3-codex` - Industry-leading coding model
+- `gpt-5.4` - **Flagship default** - 1.05M context (922K input + 128K output), native computer use
+- `gpt-5.4-mini` - Fast/efficient, ~2x faster at ~1/3 cost of gpt-5.4
+- `gpt-5.4-nano` - Lightest, cheapest option
+- `gpt-5.3-codex` - Code-specialized model, 400K context, still available
 - `gpt-5.3-codex-spark` - Near-instant real-time coding (ChatGPT Pro only)
 
 **Previous Generation (still available):**
-- `gpt-5.2-codex` - Previous default coding model
-- `gpt-5.2` - Previous flagship (supports reasoning effort: low/medium/high/xhigh)
+- `gpt-5.2-codex` - Previous default coding model (400K context)
+- `gpt-5.2` - Previous flagship
 - `gpt-5.1-codex` / `gpt-5.1-codex-max` / `gpt-5.1` - Older
 - `gpt-5-codex` / `gpt-5-codex-mini` / `gpt-5` - Legacy
 
 **Reasoning Models:**
 - `o3` - Most capable reasoning model
 
-**Note:** Default (no -m) uses `gpt-5.4`. Use `-m o3` for complex reasoning tasks, `-m gpt-5.3-codex` for code-specialized work.
+**Note:** Default (no -m) uses `gpt-5.4`. Use `-m o3` for complex reasoning tasks, `-m gpt-5.4-mini` for speed/cost savings.
 
 ## Config File (`~/.codex/config.toml`)
 

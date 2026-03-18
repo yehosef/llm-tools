@@ -45,7 +45,7 @@ claude -p "prompt" --system-prompt "You are a security expert"
 # Effort level (low/medium/high)
 claude -p "prompt" --effort high
 
-# Enable 1M context window (beta)
+# Enable 1M context window (API key users only; default on Max/Team/Enterprise)
 claude -p "prompt" --betas context-1m-2025-08-07
 ```
 
@@ -108,18 +108,18 @@ claude update           # Check for updates
 ## Available Models
 
 **Claude 4.6 (Latest):**
-- `opus` - **Best for code review** - Claude Opus 4.6, most capable (200K context, 1M in beta, 128K output)
-- `sonnet` - **Default** - Claude Sonnet 4.6, best balance of speed/quality (200K context, 1M in beta, 64K output)
+- `opus` - **Best for code review** - Claude Opus 4.6, most capable (1M context on Max/Team/Enterprise, 200K on API key, 128K output)
+- `sonnet` - **Default** - Claude Sonnet 4.6, best balance of speed/quality (1M context on Max/Team/Enterprise, 200K on API key, 64K output)
 
 **Claude 4.5:**
-- `haiku` - Claude Haiku 4.5, fastest for simple tasks
+- `haiku` - Claude Haiku 4.5, fastest for simple tasks (200K context, 8K output)
 
 **Full Model IDs:**
 - `claude-opus-4-6`
 - `claude-sonnet-4-6`
-- `claude-haiku-4-5-20251001`
+- `claude-haiku-4-5`
 
-**1M Context (Beta):** Opus 4.6 and Sonnet 4.6 support 1M token context via `--betas context-1m-2025-08-07`.
+**1M Context:** Opus 4.6 and Sonnet 4.6 have 1M token context by default on Max/Team/Enterprise plans. API key users can enable it via `--betas context-1m-2025-08-07`.
 
 **Note:** For security reviews, use `opus`. For speed, use `sonnet` (default).
 
@@ -188,8 +188,8 @@ claude -p "Review for security:" --system-prompt "You are a security auditor" < 
 # High effort reasoning
 claude -p "Find subtle bugs in:" --model opus --effort high < complex.py
 
-# 1M context for large files (beta)
-claude -p "Review entire codebase:" --betas context-1m-2025-08-07 --model opus < all-source.txt
+# 1M context for large files (default on Max/Team/Enterprise; API key users add --betas flag)
+claude -p "Review entire codebase:" --model opus < all-source.txt
 
 # Worktree for isolated work
 claude -w feature-branch "Implement auth module"

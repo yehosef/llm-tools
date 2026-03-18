@@ -24,8 +24,8 @@ Claude will orchestrate the appropriate tools and synthesize the results.
 
 | Task Type | Primary Model | Why |
 |-----------|---------------|-----|
-| Large context (>200k) | Gemini | 1M token window |
-| Code review | Codex (gpt-5.2-codex) | Code-specialized |
+| Large context (>200k) | Gemini or Codex (gpt-5.4) | 1M token window |
+| Code review | Codex (gpt-5.4) | Code-specialized, 1M context |
 | Security audit | Claude opus | Thorough analysis |
 | Quick validation | Gemini | Free tier |
 | Reasoning/logic | Codex o3 | Reasoning model |
@@ -120,11 +120,15 @@ llm-tools/
 ├── skills/
 │   └── llm-cli-tools/
 │       ├── SKILL.md             # Main skill knowledge
+│       ├── test/
+│       │   └── validate.sh      # Smoke tests for documented patterns
 │       └── references/
 │           ├── claude-cli.md    # Claude CLI details
 │           ├── gemini-cli.md    # Gemini CLI details
 │           ├── codex-cli.md     # Codex CLI details
 │           └── orchestration-patterns.md  # Advanced patterns
+├── CLAUDE.md                    # Project instructions for Claude Code
+├── CONTRIBUTING.md              # Contribution guidelines
 └── README.md
 ```
 
