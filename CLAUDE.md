@@ -17,7 +17,7 @@ A Claude Code **skill/plugin** for multi-model LLM orchestration. This is a docu
 - **All content is markdown** — changes are documentation changes, not code changes
 - **Version** lives in `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json` — keep in sync
 - **Model information gets stale fast** — always verify against current CLI `--help` output before updating
-- **Stdin behavior differences are critical** — Codex ignores piped files with positional args; Gemini/Claude don't. This is the most important thing the skill documents. Any changes here must be validated with `test/validate.sh`
+- **Stdin behavior** — All three tools (Gemini, Codex, Claude) support stdin with positional prompts. Validate with `test/validate.sh` if behavior changes
 
 ## Updating Model References
 

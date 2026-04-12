@@ -168,13 +168,13 @@ else
   skip "claude stdin" "not available"
 fi
 
-# Test: codex exec "prompt" < file — should IGNORE file (documented caveat)
+# Test: codex exec "prompt" < file — stdin appended as <stdin> block
 if $HAS_CODEX; then
   RESULT=$(run_quiet 60 bash -c 'codex exec "What is the secret word in the text I provided? Reply ONLY that word, or none if no text." < "'"$TMPFILE"'"' || true)
   if echo "$RESULT" | grep -qi "$SECRET"; then
-    fail "codex stdin with positional prompt" "found secret — stdin behavior may have changed! Docs say it should be ignored"
+    pass "codex stdin with positional prompt (file content visible via <stdin> block)"
   else
-    pass "codex stdin with positional prompt (file correctly ignored — matches docs)"
+    fail "codex stdin with positional prompt" "secret not found. Got: $(echo "$RESULT" | tail -3)"
   fi
 fi
 

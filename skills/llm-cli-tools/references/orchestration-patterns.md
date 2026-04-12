@@ -103,36 +103,32 @@ fi
 
 ## Feeding Files and Directories
 
-### Stdin Behavior (Important!)
+### Stdin Behavior
+
+All three tools support stdin with positional prompts:
 
 | Tool | `"prompt" < file` | `< file` (no prompt arg) |
 |------|-------------------|--------------------------|
 | Gemini | File content appended as context ✅ | File content becomes prompt ✅ |
 | Claude | File content appended as context ✅ | File content becomes prompt ✅ |
-| Codex | **File ignored!** Only positional prompt used ❌ | File content becomes prompt ✅ |
-
-**Codex workarounds:** Embed small files in prompt, or pipe prompt+file via stdin (no positional arg).
+| Codex | File appended as `<stdin>` block ✅ | File content becomes prompt ✅ |
 
 ### Single File
 
 ```bash
-# Gemini / Claude: stdin works as context
+# All three tools support stdin with positional prompts
 gemini "Review:" < file.py
+codex exec "Review:" < file.py
 claude -p "Review:" < file.py
-
-# Codex: embed in prompt or pipe without positional arg
-codex exec "Review: $(cat file.py)"
-bash -c '{ echo "Review:"; cat file.py; } | codex exec'
 ```
 
 ### Multiple Files with Headers
 
 ```bash
-# Gemini / Claude: pipe works directly
+# All tools support piped stdin with positional prompts
 find src -name "*.py" -exec sh -c 'echo "=== {} ==="; cat {}' \; | gemini "Review:"
-
-# Codex: pipe as stdin (no positional prompt arg)
-bash -c '{ echo "Review this codebase:"; find src -name "*.py" -exec sh -c "echo === {} ===; cat {}" \;; } | codex exec'
+find src -name "*.py" -exec sh -c 'echo "=== {} ==="; cat {}' \; | codex exec "Review:"
+find src -name "*.py" -exec sh -c 'echo "=== {} ==="; cat {}' \; | claude -p "Review:"
 
 # Using bash glob (simpler but less control)
 for f in src/**/*.py; do echo "=== $f ==="; cat "$f"; done | gemini "Review:"
@@ -171,7 +167,7 @@ git diff --name-only main | xargs -I{} sh -c 'echo "=== {} ==="; cat {}' | \
   gemini "Review these changes:"
 
 # Changed files with diff context
-bash -c '{ echo "Review this diff for bugs:"; git diff main; } | codex exec'
+git diff main | codex exec "Review this diff for bugs:"
 
 # Recently modified files
 find src -name "*.py" -mtime -7 \
@@ -179,17 +175,18 @@ find src -name "*.py" -mtime -7 \
 
 # Staged files only
 git diff --cached | claude -p "Review staged changes:" --model opus
+
+# Codex dedicated code review (reviews current repo)
+codex exec review
 ```
 
 ### Git-Diff as Input (PR Review)
 
 ```bash
-# Gemini / Claude: pipe diff directly
+# All tools support piped diff directly
 git diff main | gemini "Review this diff for bugs:"
+git diff main | codex exec "Review this diff for bugs:"
 git diff main | claude -p "Review:" --model opus
-
-# Codex: pipe as stdin
-bash -c 'git diff main | { echo "Review this diff for bugs:"; cat; } | codex exec'
 ```
 
 ## Context Management
@@ -225,8 +222,8 @@ claude -p "Prioritize these bugs:" --model opus < bugs.json
 # Model A analyzes (stdin for file content)
 ANALYSIS=$(gemini "Analyze architecture:" < design.md)
 
-# Model B reviews analysis (heredoc for safety)
-REVIEW=$(bash -c '{ echo "Review this analysis:"; cat; } | codex exec' <<< "$ANALYSIS")
+# Model B reviews analysis
+REVIEW=$(codex exec "Review this analysis:" <<< "$ANALYSIS")
 
 # Model C synthesizes (use temp file for multiple large vars)
 { echo "=== Analysis ==="; echo "$ANALYSIS"; echo "=== Review ==="; echo "$REVIEW"; } > /tmp/context.txt
@@ -270,7 +267,7 @@ fi
 
 ### Context-Aware Model Selection
 
-Both Gemini and Codex gpt-5.4 now support ~1M token context windows. Route large inputs accordingly:
+All three tools support ~1M token context windows (Gemini, Codex gpt-5.4, Claude Opus/Sonnet 4.6). Route large inputs accordingly:
 
 ```bash
 #!/bin/bash
@@ -286,7 +283,7 @@ if [ "$EST_TOKENS" -gt 150000 ]; then
   # Large input: must use 1M-context model
   echo "Large input (~${EST_TOKENS} tokens), using 1M-context model..."
   gemini "$PROMPT" < "$INPUT_FILE" || \
-    bash -c '{ echo "'"$PROMPT"'"; cat "'"$INPUT_FILE"'"; } | codex exec -m gpt-5.4'
+    codex exec -m gpt-5.4 "$PROMPT" < "$INPUT_FILE"
 elif [ "$EST_TOKENS" -gt 50000 ]; then
   # Medium: Gemini or Claude (both support stdin)
   gemini "$PROMPT" < "$INPUT_FILE"
@@ -303,7 +300,7 @@ fi
 find src -name "*.py" -exec cat {} + > /tmp/all-src.txt
 gemini "Review this codebase for bugs and improvements:" < /tmp/all-src.txt
 # Or with Codex for code-specialized review
-bash -c '{ echo "Review this codebase:"; cat /tmp/all-src.txt; } | codex exec -m gpt-5.4'
+codex exec -m gpt-5.4 "Review this codebase:" < /tmp/all-src.txt
 ```
 
 ### Complexity-Based Routing (3-Tier)
@@ -320,7 +317,7 @@ Route tasks to appropriate model tier based on complexity, not just size.
 
 **Tier 3 - Quality** (complex reasoning):
 - Architecture decisions, security audits, complex debugging
-- Use: `gemini -m pro`, `claude --model opus`, `codex exec -m o3`
+- Use: `gemini -m pro`, `claude --model opus --effort max`, `codex exec -m o3`
 
 ```bash
 #!/bin/bash
@@ -487,8 +484,8 @@ gemini -i "Review this project for security issues"
 # Start with fast model for initial analysis (stdin for file)
 INITIAL=$(gemini "Summarize:" < data.txt)
 
-# Hand off to reasoning model for deep analysis (heredoc for safety)
-DEEP=$(bash -c '{ echo "Given this summary, what are the implications?"; cat; } | codex exec -m o3' <<< "$INITIAL")
+# Hand off to reasoning model for deep analysis
+DEEP=$(codex exec -m o3 "Given this summary, what are the implications?" <<< "$INITIAL")
 
 # Final synthesis with quality model (heredoc for safety)
 claude -p "Create final report from:" --model opus <<< "$DEEP"
@@ -504,7 +501,7 @@ CONTEXT_FILE=~/.llm-context
 gemini "Analyze:" < code.py | tee -a "$CONTEXT_FILE"
 echo "---" >> "$CONTEXT_FILE"
 
-bash -c '{ echo "Review:"; cat code.py; } | codex exec' | tee -a "$CONTEXT_FILE"
+codex exec "Review:" < code.py | tee -a "$CONTEXT_FILE"
 echo "---" >> "$CONTEXT_FILE"
 
 # Final model sees all previous context
@@ -524,7 +521,7 @@ codex exec --search "What's the recommended way to handle auth in Next.js 15?"
 
 # Combine: research with web, then code with context
 RESEARCH=$(gemini "Latest best practices for Python async error handling")
-bash -c '{ echo "Apply these practices to our code:"; echo "$RESEARCH"; cat async_handler.py; } | codex exec'
+{ echo "$RESEARCH"; cat async_handler.py; } | codex exec "Apply these practices to our code:"
 ```
 
 ## MCP Server Sharing
@@ -637,7 +634,7 @@ fi
 ```bash
 # Ask models to rate confidence (stdin for file)
 gemini -o json "Rate your confidence (0-100) in this code review:" < code.py > /tmp/g.json
-bash -c '{ echo "Rate your confidence (0-100) in this code review:"; cat code.py; } | codex exec --json' > /tmp/c.json
+codex exec --json "Rate your confidence (0-100) in this code review:" < code.py > /tmp/c.json
 
 # Parse and compare
 G_CONF=$(jq '.confidence' /tmp/g.json)

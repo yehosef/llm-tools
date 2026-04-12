@@ -26,12 +26,18 @@ codex e "Your prompt here"  # alias
 codex exec -m gpt-5.4 "prompt"
 codex exec -m o3 "prompt"
 
+# With stdin file content (appended as <stdin> block)
+codex exec "Review this code:" < file.py
+
 # Full auto mode (workspace-write sandbox, minimal prompts)
 # ⚠️  WARNING: Only use in trusted repos with no secrets
 codex exec --full-auto "prompt"
 
 # With image input
 codex exec -i screenshot.png "What's in this image?"
+
+# Code review (dedicated subcommand)
+codex exec review
 
 # Resume previous non-interactive session
 codex exec resume
@@ -76,6 +82,7 @@ codex exec resume
 codex                  # Interactive TUI session
 codex exec "prompt"    # Non-interactive execution (alias: e)
 codex exec resume      # Resume non-interactive session
+codex exec review      # Dedicated code review
 codex login            # Authenticate
 codex login status     # Check auth status
 codex logout           # Remove credentials
@@ -122,21 +129,16 @@ codex mcp-server       # Run Codex as MCP server (experimental)
 
 ## Available Models
 
-**Latest:**
+**Current:**
 - `gpt-5.4` - **Flagship default** - 1.05M context (922K input + 128K output), native computer use
-- `gpt-5.4-mini` - Fast/efficient, ~2x faster at ~1/3 cost of gpt-5.4
-- `gpt-5.4-nano` - Lightest, cheapest option
-- `gpt-5.3-codex` - Code-specialized model, 400K context, still available
-- `gpt-5.3-codex-spark` - Near-instant real-time coding (ChatGPT Pro only)
-
-**Previous Generation (still available):**
-- `gpt-5.2-codex` - Previous default coding model (400K context)
-- `gpt-5.2` - Previous flagship
-- `gpt-5.1-codex` / `gpt-5.1-codex-max` / `gpt-5.1` - Older
-- `gpt-5-codex` / `gpt-5-codex-mini` / `gpt-5` - Legacy
+- `gpt-5.4-mini` - Fast/efficient, 400K context (128K output), ~2x faster at ~1/3 cost
+- `gpt-5.4-nano` - Lightest/cheapest, 400K context (API-only)
+- `gpt-5.3-codex` - Code-specialized, 400K context (128K output)
+- `gpt-5.3-codex-spark` - Near-instant real-time coding (ChatGPT Pro only, 128K context)
 
 **Reasoning Models:**
 - `o3` - Most capable reasoning model
+- `o4-mini` - Lighter reasoning model
 
 **Note:** Default (no -m) uses `gpt-5.4`. Use `-m o3` for complex reasoning tasks, `-m gpt-5.4-mini` for speed/cost savings.
 
@@ -164,23 +166,23 @@ Key options:
 ## Common Patterns
 
 ```bash
-# Quick code review (embed file in prompt for small files)
-codex exec "Review this for bugs: $(cat main.py)"
+# Code review with stdin (file appended as <stdin> block)
+codex exec "Review this for bugs:" < main.py
 
-# For larger files: pipe prompt+file as stdin (no positional arg)
-bash -c '{ echo "Review this for bugs:"; cat main.py; } | codex exec'
+# Code review (dedicated subcommand)
+codex exec review
 
 # With reasoning model
-codex exec -m o3 "Optimize this algorithm: $(cat algo.py)"
+codex exec -m o3 "Optimize this algorithm:" < algo.py
 
 # Full auto for scripting
-codex exec --full-auto "Fix the tests in this file: $(cat test.py)"
+codex exec --full-auto "Fix the tests in this file:" < test.py
 
 # Safe read-only analysis
 codex exec -s read-only "Analyze the architecture of this codebase"
 
 # JSON output for parsing
-bash -c '{ echo "Find bugs:"; cat code.py; } | codex exec --json'
+codex exec --json "Find bugs:" < code.py
 
 # Shell completions
 codex completion bash >> ~/.bashrc

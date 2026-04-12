@@ -42,11 +42,9 @@ claude -p "prompt" --max-budget-usd 1.00
 # Custom system prompt
 claude -p "prompt" --system-prompt "You are a security expert"
 
-# Effort level (low/medium/high)
+# Effort level (low/medium/high/max)
 claude -p "prompt" --effort high
-
-# Enable 1M context window (API key users only; default on Max/Team/Enterprise)
-claude -p "prompt" --betas context-1m-2025-08-07
+claude -p "prompt" --effort max  # Opus 4.6 only, deepest reasoning
 ```
 
 ## All Options
@@ -55,7 +53,7 @@ claude -p "prompt" --betas context-1m-2025-08-07
 |------|-------------|
 | `-p, --print` | Non-interactive mode (required for scripting) |
 | `--model <model>` | Model: `opus`, `sonnet`, `haiku` or full name |
-| `--effort <level>` | Effort level: `low`, `medium`, `high` |
+| `--effort <level>` | Effort level: `low`, `medium`, `high`, `max` (Opus only) |
 | `--output-format <format>` | `text`, `json`, `stream-json` |
 | `--input-format <format>` | Input: `text` (default), `stream-json` |
 | `--json-schema <schema>` | JSON schema for structured output |
@@ -108,26 +106,26 @@ claude update           # Check for updates
 ## Available Models
 
 **Claude 4.6 (Latest):**
-- `opus` - **Best for code review** - Claude Opus 4.6, most capable (1M context on Max/Team/Enterprise, 200K on API key, 128K output)
-- `sonnet` - **Default** - Claude Sonnet 4.6, best balance of speed/quality (1M context on Max/Team/Enterprise, 200K on API key, 64K output)
+- `opus` - **Best for code review** - Claude Opus 4.6, most capable (1M context, 128K output)
+- `sonnet` - **Default** - Claude Sonnet 4.6, best balance of speed/quality (1M context, 64K output)
 
 **Claude 4.5:**
-- `haiku` - Claude Haiku 4.5, fastest for simple tasks (200K context, 8K output)
+- `haiku` - Claude Haiku 4.5, fastest for simple tasks (200K context, 64K output)
 
 **Full Model IDs:**
 - `claude-opus-4-6`
 - `claude-sonnet-4-6`
 - `claude-haiku-4-5`
 
-**1M Context:** Opus 4.6 and Sonnet 4.6 have 1M token context by default on Max/Team/Enterprise plans. API key users can enable it via `--betas context-1m-2025-08-07`.
+**1M Context:** Opus 4.6 and Sonnet 4.6 have 1M token context on all plans (Max, Team, Enterprise, and API key).
 
-**Note:** For security reviews, use `opus`. For speed, use `sonnet` (default).
+**Note:** For security reviews, use `opus`. For speed, use `sonnet` (default). Use `--effort max` with `opus` for deepest reasoning.
 
 ## Permission Modes
 
 - `default` - Normal permission prompts (**recommended**)
 - `plan` - Planning mode only (read-only)
-- `auto` - Automatic permission decisions
+- `auto` - Automatic permission decisions (requires Team plan + Sonnet/Opus 4.6)
 - `acceptEdits` - Auto-accept file edits (use in trusted repos only)
 - `bypassPermissions` - ⚠️ Skip all checks (dangerous, avoid)
 - `dontAsk` - ⚠️ Never prompt (dangerous, avoid)
@@ -188,7 +186,10 @@ claude -p "Review for security:" --system-prompt "You are a security auditor" < 
 # High effort reasoning
 claude -p "Find subtle bugs in:" --model opus --effort high < complex.py
 
-# 1M context for large files (default on Max/Team/Enterprise; API key users add --betas flag)
+# Max effort reasoning (Opus only, deepest analysis)
+claude -p "Find subtle bugs in:" --model opus --effort max < complex.py
+
+# 1M context for large files (all plans)
 claude -p "Review entire codebase:" --model opus < all-source.txt
 
 # Worktree for isolated work
@@ -222,4 +223,4 @@ claude -p "Quick check:" --no-session-persistence < file.py
 - Use `--max-budget-usd` to control spending per request
 
 ### Fallback Strategy
-If Claude is unavailable, try Gemini with default model for speed, or Codex with `-m gpt-5.3-codex` for quality.
+If Claude is unavailable, try Gemini with default model for speed, or Codex with `-m gpt-5.4` for quality.

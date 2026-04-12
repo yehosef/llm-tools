@@ -14,8 +14,8 @@ Version channels: `@latest`, `@preview`, `@nightly`
 
 ## Authentication
 
-1. **Google Login** (recommended): Run `gemini` and follow prompts. Free tier: 60 req/min, 1000 req/day
-2. **API Key**: Set `GEMINI_API_KEY` environment variable. 1000 req/day free with Gemini 3
+1. **Google Login** (recommended): Run `gemini` and follow prompts. Free tier: ~60 req/min, ~1000 req/day (CLI-specific quota)
+2. **API Key**: Set `GEMINI_API_KEY` environment variable. Free tier varies by model (5-15 RPM, Flash models only for free). Pro models require paid access.
 3. **Vertex AI**: Set `GOOGLE_API_KEY` + `GOOGLE_GENAI_USE_VERTEXAI=true` for enterprise/scalable use
 
 ## Non-Interactive Usage
@@ -75,24 +75,23 @@ gemini -i "initial prompt"
 - **Auto (Gemini 2.5)** - System chooses best Gemini 2.5 model
 - **Manual** - Select specific model via `/model` or `-m` flag
 
-**Gemini 3.1 (Latest):**
-- `gemini-3.1-pro-preview` - Latest, replaces 3.0 Pro (1M input, 64K output)
+**Gemini 3.x (Current):**
+- `gemini-3.1-pro-preview` - Most capable, best reasoning (1M input, 64K output)
+- `gemini-3-flash-preview` - Fast, good balance (1M input, 64K output)
+- `gemini-3.1-flash-lite-preview` - Cheapest/fastest, 2.5x faster TTFT (1M input, 64K output)
 
-**Gemini 3 (Current):**
-- `gemini-3-flash-preview` - Fast, current generation (1M input, 64K output)
-- `gemini-3.1-flash-lite-preview` - Cheapest/fastest, 2.5x faster TTFT vs 2.5 Flash (1M input, 64K output)
-- ~~`gemini-3-pro-preview`~~ - **Deprecated March 9, 2026** - use `gemini-3.1-pro-preview`
-
-**Gemini 2.5 (Stable, deprecating June 2026):**
+**Gemini 2.5 (Stable, deprecating June 17, 2026):**
 - `gemini-2.5-pro` - Production stable, complex reasoning (1M input)
 - `gemini-2.5-flash` - Production stable, fast (1M input)
 - `gemini-2.5-flash-lite` - Ultra-efficient, cost-optimized
 
-**Aliases:** `-m pro`, `-m flash`, `-m flash-lite` for latest versions.
+**Aliases:** `-m pro` → `gemini-3.1-pro-preview`, `-m flash` → `gemini-3-flash-preview`, `-m flash-lite` → `gemini-3.1-flash-lite-preview`
 
-**Context Windows:** All current models support 1M token input context. Output varies (64K for Gemini 3).
+**Default:** `auto` — system routes between Flash and Pro based on task complexity.
 
-**Note:** Gemini 2.0 models deprecated. Gemini 2.5 models scheduled for deprecation June 2026. `/model` does not override sub-agent model selection.
+**Context Windows:** All current models support 1M token input context and 64K output.
+
+**Note:** Gemini 2.5 models scheduled for deprecation June 17, 2026. `/model` does not override sub-agent model selection.
 
 ## Built-in Tools
 
@@ -138,8 +137,8 @@ Configure via `GEMINI_SANDBOX` env var: `true`/`false`/`docker`/`podman`/`sandbo
 
 ## Strengths
 
-- **1M token context window** - matches gpt-5.4, largest available
-- **Free tier** - 60 req/min, 1000 req/day with Google login
+- **1M token context window** - matches gpt-5.4 and Claude 4.6
+- **Free tier** - available via Google login (~60 req/min CLI quota). API key free tier is more limited (Flash models only, 5-15 RPM)
 - **Good at research/analysis** - different training data than Claude
 - **Rich tool ecosystem** - built-in search, planning, skills
 
@@ -175,8 +174,8 @@ gemini -m pro "Complex analysis:" < data.txt
 - **Timeout on large prompts**: 1M context is large but still has processing limits
 
 ### Rate Limits
-- Free tier: 60 requests/minute, 1000 requests/day
-- API key tier: Check Google AI Studio for your quota
+- Google login (CLI): ~60 requests/minute, ~1000 requests/day
+- API key free tier: 5-15 RPM depending on model (Flash models only for free; Pro requires paid)
 - Vertex AI: Separate quota per project
 
 ### Fallback Strategy

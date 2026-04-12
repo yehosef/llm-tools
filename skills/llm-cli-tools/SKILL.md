@@ -15,12 +15,10 @@ Most requests are simple - just run the models and show results:
 # "Review this with Gemini" (stdin works as context)
 gemini "Review this code:" < file.py
 
-# "Check with Codex" (stdin is prompt only - no file piping with positional arg!)
-codex exec "Review this code: $(cat file.py)"
-# Or pipe prompt+file as stdin (no positional arg):
-bash -c '{ echo "Review this code:"; cat file.py; } | codex exec'
+# "Check with Codex" (stdin appended as <stdin> block)
+codex exec "Review this code:" < file.py
 
-# "Review with Gemini and Claude" (parallel, both support stdin)
+# "Review with Gemini and Claude" (parallel, all support stdin)
 gemini "Review:" < file.py > /tmp/g.txt &
 claude -p "Review:" --model sonnet < file.py > /tmp/cl.txt &
 wait
@@ -30,7 +28,7 @@ cat /tmp/g.txt /tmp/cl.txt
 claude -p "Review:" --model sonnet < file.py
 ```
 
-**⚠️ Codex stdin caveat:** `codex exec` reads stdin as the *prompt*, not as appended file content. `codex exec "prompt" < file.py` ignores the file. Use `codex exec "prompt: $(cat file.py)"` or interactive mode instead.
+**All three tools support stdin with positional prompts.** `tool "prompt" < file` works for Gemini, Codex, and Claude.
 
 **That's it for simple requests.** Advanced patterns (routing, escalation, consensus) are below for complex tasks.
 
@@ -59,11 +57,11 @@ claude -p "Review:" --model sonnet < file.py
 
 | Task Type | Primary | Why | Backup |
 |-----------|---------|-----|--------|
-| Large context (>200k) | Gemini or Codex | Both have ~1M context | Claude (1M on subscription) |
-| Code review | Codex (`gpt-5.4`) | Default, 1M context + coding | Claude opus |
+| Large context (>200k) | Gemini or Codex | All have ~1M context | Claude opus (1M) |
+| Code review | Codex (`gpt-5.4`) | 1M context + code-specialized | Claude opus |
 | Security audit | Claude opus | Thorough analysis | Codex o3 |
 | Quick validation | Gemini (free) | Fast, no cost | Codex `gpt-5.4-mini` |
-| Reasoning/logic | Codex o3 | Reasoning model | Claude opus |
+| Reasoning/logic | Codex o3 | Reasoning model | Claude opus `--effort max` |
 | Research | Gemini (`-m pro`) | Large context + web | Claude opus |
 | Full-repo review | Codex (`gpt-5.4`) | 1M context + coding | Gemini 3.1 pro |
 
@@ -72,10 +70,9 @@ claude -p "Review:" --model sonnet < file.py
 Run multiple models simultaneously for consensus or speed:
 
 ```bash
-# Parallel review - Gemini and Claude support stdin, Codex needs inline content
-CODE=$(cat code.py)
+# Parallel review - all three support stdin
 gemini "Review this code:" < code.py > /tmp/gemini.txt &
-codex exec "Review this code: $CODE" > /tmp/codex.txt &
+codex exec "Review this code:" < code.py > /tmp/codex.txt &
 claude -p "Review this code:" --model sonnet < code.py > /tmp/claude.txt &
 wait
 # Synthesize results from all three files
@@ -84,9 +81,8 @@ wait
 For structured output, use JSON mode:
 
 ```bash
-CODE=$(cat code.py)
 gemini -o json "Find bugs:" < code.py > /tmp/gemini.json &
-codex exec --json "Find bugs: $CODE" > /tmp/codex.json &
+codex exec --json "Find bugs:" < code.py > /tmp/codex.json &
 wait
 # Claude: use --output-format json
 ```
@@ -134,65 +130,55 @@ command -v gemini >/dev/null && gemini "prompt" || echo "Gemini not available"
 | Gemini | `gemini-3-flash-preview` | 1M tokens | 64K tokens |
 | Gemini | `gemini-2.5-pro` / `flash` | 1M tokens | 64K tokens |
 | Codex | `gpt-5.4` | 922K tokens | 128K tokens |
+| Codex | `gpt-5.4-mini` | 400K tokens | 128K tokens |
 | Codex | `gpt-5.3-codex` | 400K tokens | 128K tokens |
-| Claude | `opus` / `sonnet` (4.6) | 1M tokens (Max/Team/Enterprise), 200K (API key) | 128K / 64K |
-| Claude | `haiku` (4.5) | 200K tokens | 8K tokens |
+| Claude | `opus` (4.6) | 1M tokens | 128K tokens |
+| Claude | `sonnet` (4.6) | 1M tokens | 64K tokens |
+| Claude | `haiku` (4.5) | 200K tokens | 64K tokens |
 
-**All three tools now support ~1M context.** Gemini and Codex gpt-5.4 natively; Claude 4.6 has 1M by default on Max/Team/Enterprise plans.
+**All three tools support ~1M context.** Gemini (all models), Codex gpt-5.4, and Claude Opus/Sonnet 4.6 all support 1M input.
 
-**For large context tasks (code review, log analysis, full-repo review):** Use Gemini (free, 1M native), Codex gpt-5.4 (1M, code-specialized), or Claude:
+**For large context tasks (code review, log analysis, full-repo review):**
 ```bash
-# Max/Team/Enterprise users — 1M context is default
+# All plans — 1M context for Opus/Sonnet 4.6
 claude -p "Review:" --model opus < all-source.txt
-
-# API key users — use beta flag for 1M context
-claude -p "Review:" --model opus --betas context-1m-2025-08-07 < all-source.txt
 ```
 
-**Auto-routing by size:** If input fits in ~200K, any model works. Above 200K, use Gemini, Codex gpt-5.4, or Claude (1M default on subscription plans, beta flag for API keys).
+**Auto-routing by size:** If input fits in ~200K, any model works. Above 200K, use Gemini, Codex gpt-5.4, or Claude Opus/Sonnet.
 
 ## Feeding Files to Models
 
 ### Stdin Support
 
-| Tool | `< file.py` works? | How to pass file content |
-|------|-------------------|------------------------|
-| Gemini | **Yes** - stdin appended as context | `gemini "Review:" < file.py` |
-| Claude | **Yes** - stdin appended as context | `claude -p "Review:" < file.py` |
-| Codex | **No** - stdin is prompt only, ignores file with positional arg | Embed in prompt or use interactive mode |
+All three tools support stdin with positional prompts:
 
-### Gemini / Claude (stdin works)
+| Tool | `"prompt" < file.py` | How it works |
+|------|---------------------|-------------|
+| Gemini | ✅ | Stdin appended as context |
+| Claude | ✅ | Stdin appended as context |
+| Codex | ✅ | Stdin appended as `<stdin>` block |
+
+### Single File
 
 ```bash
-# Single file
+# All three tools work the same way
 gemini "Review:" < file.py
+codex exec "Review:" < file.py
 claude -p "Review:" --model opus < file.py
+```
 
-# Multiple files with headers
+### Multiple Files
+
+```bash
+# Multiple files with headers (works for all tools)
 find src -name "*.py" -exec sh -c 'echo "=== {} ==="; cat {}' \; | gemini "Review this codebase:"
+find src -name "*.py" -exec sh -c 'echo "=== {} ==="; cat {}' \; | codex exec "Review this codebase:"
+find src -name "*.py" -exec sh -c 'echo "=== {} ==="; cat {}' \; | claude -p "Review:" --model opus
 
 # With size check (estimate tokens before sending)
 CHARS=$(find src -name "*.py" -exec cat {} + | wc -c)
 echo "~$((CHARS / 4)) tokens"  # If >900K, too large even for 1M models
 ```
-
-### Codex (embed content in prompt)
-
-```bash
-# Small files: embed in prompt string
-codex exec "Review this code: $(cat file.py)"
-
-# Multiple small files: concatenate into prompt
-codex exec "Review: $(find src -name '*.py' -exec cat {} +)"
-
-# Large files: pipe prompt+content as stdin (no positional arg)
-bash -c '{ echo "Review this code for bugs:"; cat file.py; } | codex exec'
-
-# Multiple large files via stdin
-bash -c '{ echo "Review this codebase:"; find src -name "*.py" -exec sh -c "echo === {} ===; cat {}" \;; } | codex exec'
-```
-
-**⚠️ Codex limit:** Embedding via `$(cat)` hits shell argv limits (~256KB on macOS). For large files, pipe via stdin instead. Note: stdin piping requires bash (not fish) and no positional prompt arg.
 
 ## Session Reuse (Keep Context)
 
@@ -210,9 +196,9 @@ All tools support session persistence - build context once, ask follow-ups witho
 
 | Tool | Command | Best For |
 |------|---------|----------|
-| Gemini | `gemini "prompt"` | 1M context, research, free tier |
-| Codex | `codex exec "prompt"` | Code review, 1M context (gpt-5.4) |
-| Claude | `claude -p "prompt"` | Fresh context, security analysis |
+| Gemini | `gemini "prompt" < file` | 1M context, research, free tier |
+| Codex | `codex exec "prompt" < file` | Code review, 1M context (gpt-5.4) |
+| Claude | `claude -p "prompt" < file` | Fresh context, security analysis |
 
 ## Model Selection
 
@@ -220,9 +206,9 @@ All tools support session persistence - build context once, ask follow-ups witho
 |------|---------|------|-----------|
 | Gemini | `-m pro` | `-m flash` | pro |
 | Codex | `-m gpt-5.4` (default) | `-m gpt-5.4-mini` | `-m o3` |
-| Claude | `--model opus` | `--model sonnet` | `--model opus --effort high` |
+| Claude | `--model opus` | `--model sonnet` | `--model opus --effort max` |
 
-**Full model names:** Gemini: `gemini-3.1-pro-preview` (latest), `gemini-3-flash-preview`, `gemini-2.5-pro`, `gemini-2.5-flash`. Note: `gemini-3-pro-preview` deprecated March 9, 2026. Codex: `gpt-5.4` (default), `gpt-5.4-mini`, `gpt-5.3-codex`, `o3`. Claude: `opus`, `sonnet`, `haiku`.
+**Full model names:** Gemini: `gemini-3.1-pro-preview`, `gemini-3-flash-preview`, `gemini-3.1-flash-lite-preview`. Codex: `gpt-5.4` (default), `gpt-5.4-mini`, `gpt-5.3-codex`, `o3`, `o4-mini`. Claude: `opus` (4.6), `sonnet` (4.6), `haiku` (4.5).
 
 ## Common Patterns
 
@@ -230,10 +216,9 @@ All tools support session persistence - build context once, ask follow-ups witho
 Ask all 3 models the same question, compare answers, flag disagreements.
 
 ```bash
-# Gemini/Claude support stdin; Codex needs content in prompt
-CODE=$(cat code.py)
+# All three support stdin
 gemini "Review this code for bugs:" < code.py > /tmp/g.txt &
-codex exec "Review this code for bugs: $CODE" > /tmp/c.txt &
+codex exec "Review this code for bugs:" < code.py > /tmp/c.txt &
 claude -p "Review this code for bugs:" < code.py > /tmp/cl.txt &
 wait
 ```
@@ -242,14 +227,14 @@ wait
 Route to best model for task type (see routing table above).
 
 ```bash
-# Security audit → Claude opus (stdin for large files)
+# Security audit → Claude opus
 claude -p "Security audit:" --model opus < api.py
 
 # Large file analysis → Gemini
 gemini "Analyze this log:" < large-log.txt
 
-# Code optimization → Codex (embed file in prompt)
-codex exec -m gpt-5.3-codex "Optimize this code: $(cat perf.py)"
+# Code optimization → Codex
+codex exec -m gpt-5.4 "Optimize this code:" < perf.py
 ```
 
 ### Pattern 3: Fallback Chain
@@ -264,14 +249,20 @@ gemini "prompt" 2>/dev/null || \
 **Note:** Exit code alone doesn't catch all failures—some models return 0 with error text. For critical tasks, validate output content.
 
 ### Pattern 4: Large Context Handling
-Both Gemini and Codex (gpt-5.4) support ~1M token context. Use either for large files, summarize for Claude.
+All three tools support ~1M token context. Use any for large files.
 
 ```bash
-# Gemini handles large context (free tier, stdin works)
+# Gemini handles large context (free tier)
+gemini "Review this large codebase:" < all-source.txt
+
+# Codex gpt-5.4 (1M context, code-specialized)
+codex exec "Review this large codebase:" < all-source.txt
+
+# Claude opus (1M context)
+claude -p "Review:" --model opus < all-source.txt
+
+# Cascade: fast summary → deep analysis
 SUMMARY=$(gemini "Summarize key points:" < huge-file.txt)
-# Codex: use interactive mode for large files (stdin doesn't pipe file content)
-# Or embed if small enough: codex exec "Summarize: $(cat file.txt)"
-# Pass summary via stdin to Claude (safer than command line)
 claude -p "Analyze this summary:" --model opus <<< "$SUMMARY"
 ```
 

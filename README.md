@@ -24,7 +24,7 @@ Claude will orchestrate the appropriate tools and synthesize the results.
 
 | Task Type | Primary Model | Why |
 |-----------|---------------|-----|
-| Large context (>200k) | Gemini or Codex (gpt-5.4) | 1M token window |
+| Large context (>200k) | Gemini, Codex (gpt-5.4), or Claude opus | All have ~1M token window |
 | Code review | Codex (gpt-5.4) | Code-specialized, 1M context |
 | Security audit | Claude opus | Thorough analysis |
 | Quick validation | Gemini | Free tier |
@@ -35,8 +35,8 @@ Claude will orchestrate the appropriate tools and synthesize the results.
 | Tool | Provider | Best For |
 |------|----------|----------|
 | `gemini` | Google | Large context (1M tokens), research, free tier |
-| `codex` | OpenAI | Code review, GPT-5 reasoning, o3 for logic |
-| `claude` | Anthropic | Fresh context, security analysis |
+| `codex` | OpenAI | Code review, GPT-5.4 reasoning, o3/o4-mini for logic |
+| `claude` | Anthropic | Security analysis, fresh context, 1M context |
 
 ## Installation
 
