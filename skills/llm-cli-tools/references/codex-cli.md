@@ -51,19 +51,24 @@ codex exec resume
 |------|-------|-------------|
 | `--model <model>` | `-m` | Model to use |
 | `--sandbox <mode>` | `-s` | `read-only`, `workspace-write`, `danger-full-access` |
-| `--ask-for-approval <policy>` | `-a` | `untrusted`, `on-request`, `never` |
+| `--ask-for-approval <policy>` | `-a` | `untrusted`, `on-failure` (DEPRECATED), `on-request`, `never` |
 | `--full-auto` | | Convenience: `-a on-request --sandbox workspace-write` |
+| `--dangerously-bypass-approvals-and-sandbox` | | Skip all confirmation prompts and sandboxing. ⚠️ Intended only for externally-sandboxed environments. |
 | `--image <file>` | `-i` | Attach image(s) to prompt |
 | `--cd <dir>` | `-C` | Set working directory |
 | `--add-dir <dir>` | | Additional writable directories |
-| `--search` | | Enable web search tool |
+| `--search` | | Enable web search tool (interactive only — not available on `codex exec`) |
 | `--config <key=value>` | `-c` | Override config values (repeatable) |
-| `--oss` | | Use local model (Ollama) |
+| `--oss` | | Use local open-source model provider |
+| `--local-provider <provider>` | | `lmstudio` or `ollama` (pair with `--oss`) |
 | `--profile <name>` | `-p` | Use config profile |
 | `--no-alt-screen` | | Disable TUI alternate screen |
 | `--enable <feature>` | | Force-enable feature flag (repeatable) |
 | `--disable <feature>` | | Force-disable feature flag (repeatable) |
-| `--yolo` | | Bypass all safety checks (alias for `--dangerously-bypass-approvals-and-sandbox`) |
+| `--remote <addr>` | | Connect TUI to remote app server (`ws://` or `wss://`) |
+| `--remote-auth-token-env <var>` | | Env var containing bearer token for remote server |
+
+> **Note on `--yolo`:** OpenAI's CLI reference page documents `--yolo` as an alias for `--dangerously-bypass-approvals-and-sandbox`, but it is **not** present in every installed build (e.g., `codex-cli 0.121.0` on macOS does not have it). Prefer `--dangerously-bypass-approvals-and-sandbox` for portability.
 
 ### `codex exec` Additional Flags
 
@@ -82,7 +87,8 @@ codex exec resume
 codex                  # Interactive TUI session
 codex exec "prompt"    # Non-interactive execution (alias: e)
 codex exec resume      # Resume non-interactive session
-codex exec review      # Dedicated code review
+codex exec review      # Dedicated code review (subcommand of exec)
+codex review           # Top-level code review subcommand
 codex login            # Authenticate
 codex login status     # Check auth status
 codex logout           # Remove credentials
@@ -90,6 +96,7 @@ codex resume           # Resume interactive session
 codex fork             # Fork previous session into new thread
 codex apply            # Apply latest diff from cloud task (alias: a)
 codex sandbox          # Run command in sandbox
+codex debug            # Debugging tools
 codex completion       # Shell completions (bash/zsh/fish/powershell/elvish)
 
 # MCP server management
@@ -100,6 +107,9 @@ codex mcp login        # OAuth login for HTTP MCP server
 codex mcp logout       # Remove MCP OAuth credentials
 codex mcp remove       # Delete MCP server
 
+# Plugin marketplaces (new in 0.121.0)
+codex marketplace add  # Add a remote marketplace repository (GitHub, git URL, local dir, or marketplace.json URL)
+
 # Feature flags
 codex features list    # Show all feature flags
 codex features enable  # Enable a feature flag
@@ -109,10 +119,11 @@ codex features disable # Disable a feature flag
 codex cloud            # Cloud task management
 codex cloud list       # List recent cloud tasks (--json, --limit 1-20)
 
-# Desktop & server
-codex app              # Launch desktop app (macOS)
+# Desktop & servers
+codex app              # Launch desktop app (macOS; downloads installer if missing)
 codex app-server       # Local app server (experimental)
-codex mcp-server       # Run Codex as MCP server (experimental)
+codex exec-server      # Standalone exec-server service (experimental, added in 0.119.0)
+codex mcp-server       # Run Codex as MCP server (stdio, experimental)
 ```
 
 ## Sandbox Modes
@@ -124,21 +135,24 @@ codex mcp-server       # Run Codex as MCP server (experimental)
 ## Approval Policies
 
 - `untrusted` - Only trusted commands run without approval (**recommended**)
+- `on-failure` - ⚠️ DEPRECATED. Run everything; escalate only on failure. Prefer `on-request` (interactive) or `never` (non-interactive).
 - `on-request` - Model decides when to ask
 - `never` - ⚠️ Never ask (dangerous)
 
 ## Available Models
 
-**Current:**
-- `gpt-5.4` - **Flagship default** - 1.05M context (922K input + 128K output), native computer use
+**Current (available in Codex CLI):**
+- `gpt-5.4` - **Flagship default** - 1.05M total window (922K input + 128K output), native computer use
 - `gpt-5.4-mini` - Fast/efficient, 400K context (128K output), ~2x faster at ~1/3 cost
-- `gpt-5.4-nano` - Lightest/cheapest, 400K context (API-only)
 - `gpt-5.3-codex` - Code-specialized, 400K context (128K output)
 - `gpt-5.3-codex-spark` - Near-instant real-time coding (ChatGPT Pro only, 128K context)
 
 **Reasoning Models:**
 - `o3` - Most capable reasoning model
-- `o4-mini` - Lighter reasoning model
+- `o4-mini` - Lighter reasoning model. ⚠️ OpenAI's docs describe it as "succeeded by GPT-5 mini" — treat as on a deprecation path.
+
+**API-only (NOT available via Codex CLI):**
+- `gpt-5.4-nano` - Lightest/cheapest, 400K context. Available via the OpenAI API only; Codex CLI's model list does not include it.
 
 **Note:** Default (no -m) uses `gpt-5.4`. Use `-m o3` for complex reasoning tasks, `-m gpt-5.4-mini` for speed/cost savings.
 

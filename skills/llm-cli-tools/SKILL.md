@@ -13,13 +13,13 @@ Most requests are simple - just run the models and show results:
 
 ```bash
 # "Review this with Gemini" (stdin works as context)
-gemini "Review this code:" < file.py
+gemini -p "Review this code:" < file.py
 
 # "Check with Codex" (stdin appended as <stdin> block)
 codex exec "Review this code:" < file.py
 
 # "Review with Gemini and Claude" (parallel, all support stdin)
-gemini "Review:" < file.py > /tmp/g.txt &
+gemini -p "Review:" < file.py > /tmp/g.txt &
 claude -p "Review:" --model sonnet < file.py > /tmp/cl.txt &
 wait
 cat /tmp/g.txt /tmp/cl.txt
@@ -29,6 +29,8 @@ claude -p "Review:" --model sonnet < file.py
 ```
 
 **All three tools support stdin with positional prompts.** `tool "prompt" < file` works for Gemini, Codex, and Claude.
+
+**Gemini `-p` is required for headless mode.** Without `-p`, `gemini "prompt"` starts *interactive* mode when stdin is a TTY. When stdin is redirected (e.g., `< file.py` or a pipe), Gemini auto-detects non-interactive and works either way — but `-p` is the documented, reliable form. Scripts should always use `gemini -p "prompt"`.
 
 **That's it for simple requests.** Advanced patterns (routing, escalation, consensus) are below for complex tasks.
 
@@ -59,7 +61,7 @@ claude -p "Review:" --model sonnet < file.py
 |-----------|---------|-----|--------|
 | Large context (>200k) | Gemini or Codex | All have ~1M context | Claude opus (1M) |
 | Code review | Codex (`gpt-5.4`) | 1M context + code-specialized | Claude opus |
-| Security audit | Claude opus | Thorough analysis | Codex o3 |
+| Security audit | Claude opus `--effort xhigh` | Thorough analysis (Opus 4.7) | Codex o3 |
 | Quick validation | Gemini (free) | Fast, no cost | Codex `gpt-5.4-mini` |
 | Reasoning/logic | Codex o3 | Reasoning model | Claude opus `--effort max` |
 | Research | Gemini (`-m pro`) | Large context + web | Claude opus |
@@ -71,7 +73,7 @@ Run multiple models simultaneously for consensus or speed:
 
 ```bash
 # Parallel review - all three support stdin
-gemini "Review this code:" < code.py > /tmp/gemini.txt &
+gemini -p "Review this code:" < code.py > /tmp/gemini.txt &
 codex exec "Review this code:" < code.py > /tmp/codex.txt &
 claude -p "Review this code:" --model sonnet < code.py > /tmp/claude.txt &
 wait
@@ -81,10 +83,11 @@ wait
 For structured output, use JSON mode:
 
 ```bash
-gemini -o json "Find bugs:" < code.py > /tmp/gemini.json &
+gemini -p -o json "Find bugs:" < code.py > /tmp/gemini.json &
 codex exec --json "Find bugs:" < code.py > /tmp/codex.json &
 wait
 # Claude: use --output-format json
+# Note: codex --json emits JSONL events (one per line), not a single JSON document
 ```
 
 ## Result Synthesis
@@ -119,7 +122,7 @@ Check tool availability:
 
 ```bash
 # Verify tool is available before use
-command -v gemini >/dev/null && gemini "prompt" || echo "Gemini not available"
+command -v gemini >/dev/null && gemini -p "prompt" || echo "Gemini not available"
 ```
 
 ## Context Window Sizes
@@ -128,23 +131,26 @@ command -v gemini >/dev/null && gemini "prompt" || echo "Gemini not available"
 |------|-------|-------|--------|
 | Gemini | `gemini-3.1-pro-preview` | 1M tokens | 64K tokens |
 | Gemini | `gemini-3-flash-preview` | 1M tokens | 64K tokens |
+| Gemini | `gemini-3.1-flash-lite-preview` | 1M tokens | 64K tokens |
 | Gemini | `gemini-2.5-pro` / `flash` | 1M tokens | 64K tokens |
-| Codex | `gpt-5.4` | 922K tokens | 128K tokens |
+| Codex | `gpt-5.4` | 1.05M tokens (922K in + 128K out) | 128K tokens |
 | Codex | `gpt-5.4-mini` | 400K tokens | 128K tokens |
 | Codex | `gpt-5.3-codex` | 400K tokens | 128K tokens |
-| Claude | `opus` (4.6) | 1M tokens | 128K tokens |
-| Claude | `sonnet` (4.6) | 1M tokens | 64K tokens |
+| Claude | `opus` (4.7, default) | 1M tokens* | 128K tokens |
+| Claude | `sonnet` (4.6) | 1M tokens* | 64K tokens |
 | Claude | `haiku` (4.5) | 200K tokens | 64K tokens |
 
-**All three tools support ~1M context.** Gemini (all models), Codex gpt-5.4, and Claude Opus/Sonnet 4.6 all support 1M input.
+*1M context for Claude Opus/Sonnet requires Max/Team/Enterprise plan for Opus (included) or API key access; Pro and Standard tiers incur extra usage charges above 200K. Opus 4.7 uses a new tokenizer (~555K English words ≈ 1M tokens, vs ~750K for Sonnet 4.6).
+
+**All three tools support ~1M context.** Gemini (all models), Codex gpt-5.4, and Claude Opus 4.7 / Sonnet 4.6 all support 1M input.
 
 **For large context tasks (code review, log analysis, full-repo review):**
 ```bash
-# All plans — 1M context for Opus/Sonnet 4.6
+# 1M context with Opus 4.7
 claude -p "Review:" --model opus < all-source.txt
 ```
 
-**Auto-routing by size:** If input fits in ~200K, any model works. Above 200K, use Gemini, Codex gpt-5.4, or Claude Opus/Sonnet.
+**Auto-routing by size:** If input fits in ~200K, any model works. Above 200K, use Gemini, Codex gpt-5.4, or Claude Opus/Sonnet on a plan that includes 1M context.
 
 ## Feeding Files to Models
 
@@ -162,7 +168,7 @@ All three tools support stdin with positional prompts:
 
 ```bash
 # All three tools work the same way
-gemini "Review:" < file.py
+gemini -p "Review:" < file.py
 codex exec "Review:" < file.py
 claude -p "Review:" --model opus < file.py
 ```
@@ -171,7 +177,7 @@ claude -p "Review:" --model opus < file.py
 
 ```bash
 # Multiple files with headers (works for all tools)
-find src -name "*.py" -exec sh -c 'echo "=== {} ==="; cat {}' \; | gemini "Review this codebase:"
+find src -name "*.py" -exec sh -c 'echo "=== {} ==="; cat {}' \; | gemini -p "Review this codebase:"
 find src -name "*.py" -exec sh -c 'echo "=== {} ==="; cat {}' \; | codex exec "Review this codebase:"
 find src -name "*.py" -exec sh -c 'echo "=== {} ==="; cat {}' \; | claude -p "Review:" --model opus
 
@@ -196,7 +202,7 @@ All tools support session persistence - build context once, ask follow-ups witho
 
 | Tool | Command | Best For |
 |------|---------|----------|
-| Gemini | `gemini "prompt" < file` | 1M context, research, free tier |
+| Gemini | `gemini -p "prompt" < file` | 1M context, research, free tier |
 | Codex | `codex exec "prompt" < file` | Code review, 1M context (gpt-5.4) |
 | Claude | `claude -p "prompt" < file` | Fresh context, security analysis |
 
@@ -206,9 +212,11 @@ All tools support session persistence - build context once, ask follow-ups witho
 |------|---------|------|-----------|
 | Gemini | `-m pro` | `-m flash` | pro |
 | Codex | `-m gpt-5.4` (default) | `-m gpt-5.4-mini` | `-m o3` |
-| Claude | `--model opus` | `--model sonnet` | `--model opus --effort max` |
+| Claude | `--model opus` | `--model sonnet` | `--model opus --effort xhigh` |
 
-**Full model names:** Gemini: `gemini-3.1-pro-preview`, `gemini-3-flash-preview`, `gemini-3.1-flash-lite-preview`. Codex: `gpt-5.4` (default), `gpt-5.4-mini`, `gpt-5.3-codex`, `o3`, `o4-mini`. Claude: `opus` (4.6), `sonnet` (4.6), `haiku` (4.5).
+**Full model names:** Gemini: `gemini-3.1-pro-preview`, `gemini-3-flash-preview`, `gemini-3.1-flash-lite-preview`. Codex: `gpt-5.4` (default), `gpt-5.4-mini`, `gpt-5.3-codex`, `o3`, `o4-mini`. Claude: `opus` (4.7, default), `sonnet` (4.6), `haiku` (4.5).
+
+**Claude effort levels:** `low`, `medium`, `high`, `xhigh`, `max`. `xhigh` is Opus-4.7-specific ("best results for most coding and agentic tasks") and silently degrades to `high` on older models. `max` is deepest reasoning but slower.
 
 ## Common Patterns
 
@@ -217,7 +225,7 @@ Ask all 3 models the same question, compare answers, flag disagreements.
 
 ```bash
 # All three support stdin
-gemini "Review this code for bugs:" < code.py > /tmp/g.txt &
+gemini -p "Review this code for bugs:" < code.py > /tmp/g.txt &
 codex exec "Review this code for bugs:" < code.py > /tmp/c.txt &
 claude -p "Review this code for bugs:" < code.py > /tmp/cl.txt &
 wait
@@ -227,11 +235,11 @@ wait
 Route to best model for task type (see routing table above).
 
 ```bash
-# Security audit → Claude opus
-claude -p "Security audit:" --model opus < api.py
+# Security audit → Claude opus (Opus 4.7)
+claude -p "Security audit:" --model opus --effort xhigh < api.py
 
 # Large file analysis → Gemini
-gemini "Analyze this log:" < large-log.txt
+gemini -p "Analyze this log:" < large-log.txt
 
 # Code optimization → Codex
 codex exec -m gpt-5.4 "Optimize this code:" < perf.py
@@ -241,7 +249,7 @@ codex exec -m gpt-5.4 "Optimize this code:" < perf.py
 Try primary → if fails → try backup → if fails → report.
 
 ```bash
-gemini "prompt" 2>/dev/null || \
+gemini -p "prompt" 2>/dev/null || \
   codex exec "prompt" 2>/dev/null || \
   echo "All tools failed"
 ```
@@ -253,16 +261,16 @@ All three tools support ~1M token context. Use any for large files.
 
 ```bash
 # Gemini handles large context (free tier)
-gemini "Review this large codebase:" < all-source.txt
+gemini -p "Review this large codebase:" < all-source.txt
 
 # Codex gpt-5.4 (1M context, code-specialized)
 codex exec "Review this large codebase:" < all-source.txt
 
-# Claude opus (1M context)
+# Claude opus (1M context, Opus 4.7)
 claude -p "Review:" --model opus < all-source.txt
 
 # Cascade: fast summary → deep analysis
-SUMMARY=$(gemini "Summarize key points:" < huge-file.txt)
+SUMMARY=$(gemini -p "Summarize key points:" < huge-file.txt)
 claude -p "Analyze this summary:" --model opus <<< "$SUMMARY"
 ```
 

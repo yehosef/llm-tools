@@ -202,17 +202,30 @@ fi
 echo ""
 
 # -------------------------------------------------------------------
-echo "4. Model Availability"
+echo "4. Model Availability & Doc Consistency"
 echo "-------------------------------------------------------------------"
+# These tests detect model-name drift: if the CLI default no longer matches
+# what the docs claim, the skill is already stale. Failing loudly here
+# surfaces that rot early. Update both docs and these assertions together.
+
+DOCS_CODEX_DEFAULT="gpt-5.4"     # If this changes, update SKILL.md + codex-cli.md + README.md
+DOCS_CLAUDE_DEFAULT_IDS="claude-opus-4-7 claude-sonnet-4-6"  # Accept either as current default
 
 if $HAS_GEMINI; then
-  RESULT=$(run_quiet 60 gemini "Say OK" || true)
+  RESULT=$(run_quiet 60 gemini -p "Say OK" || true)
   if echo "$RESULT" | grep -qi "ok"; then
-    pass "gemini default model"
+    pass "gemini -p (non-interactive) works"
   elif [ -z "$RESULT" ]; then
-    skip "gemini default model" "empty response (rate limited?)"
+    skip "gemini -p" "empty response (rate limited?)"
   else
-    fail "gemini default model" "unexpected: $(echo "$RESULT" | tail -3)"
+    fail "gemini -p" "unexpected: $(echo "$RESULT" | tail -3)"
+  fi
+
+  # Assert -p is not marked deprecated in --help (catches false-deprecation claims)
+  if gemini --help 2>&1 | grep -q -- "-p, --prompt.*Run in non-interactive"; then
+    pass "gemini -p/--prompt is documented as the non-interactive entrypoint (not deprecated)"
+  else
+    fail "gemini -p/--prompt docs" "help text for -p changed — re-audit gemini-cli.md"
   fi
 fi
 
@@ -220,9 +233,46 @@ if $HAS_CODEX; then
   RESULT=$(run_verbose 60 codex exec "Say OK" || true)
   MODEL=$(echo "$RESULT" | grep "^model:" | head -1 | sed 's/model: //')
   if [ -n "$MODEL" ]; then
-    pass "codex default model ($MODEL)"
+    if [ "$MODEL" = "$DOCS_CODEX_DEFAULT" ]; then
+      pass "codex default model ($MODEL matches docs)"
+    else
+      fail "codex default model" "got '$MODEL', docs say '$DOCS_CODEX_DEFAULT' — update SKILL.md/codex-cli.md/README.md"
+    fi
   else
-    fail "codex default model" "could not detect model"
+    fail "codex default model" "could not detect model from output"
+  fi
+
+  # Assert --yolo is NOT claimed to exist if the installed CLI doesn't have it
+  if codex --help 2>&1 | grep -q -- "--yolo"; then
+    pass "codex --yolo flag present in this build"
+  else
+    pass "codex --yolo absent in this build (use --dangerously-bypass-approvals-and-sandbox)"
+  fi
+fi
+
+if $HAS_CLAUDE; then
+  # Probe actual model used via JSON output's modelUsage map
+  RESULT=$(run_quiet 30 claude -p "Reply ONLY: OK" --output-format json || true)
+  USED_MODEL=$(echo "$RESULT" | grep -oE 'claude-(opus|sonnet|haiku)-[0-9-]+' | sort -u | tr '\n' ' ')
+  if [ -n "$USED_MODEL" ]; then
+    OK=false
+    for want in $DOCS_CLAUDE_DEFAULT_IDS; do
+      echo "$USED_MODEL" | grep -q "$want" && OK=true && break
+    done
+    if $OK; then
+      pass "claude default model ($USED_MODEL matches docs)"
+    else
+      fail "claude default model" "got '$USED_MODEL', docs expect one of: $DOCS_CLAUDE_DEFAULT_IDS — refresh claude-cli.md"
+    fi
+  else
+    skip "claude model detection" "could not parse modelUsage from JSON output"
+  fi
+
+  # Assert --effort accepts xhigh (Opus 4.7 only; catches CLI regression)
+  if claude --help 2>&1 | grep -q -- "--effort.*xhigh"; then
+    pass "claude --effort supports xhigh (Opus 4.7)"
+  else
+    fail "claude --effort xhigh" "not in help — docs claim xhigh support, CLI disagrees"
   fi
 fi
 

@@ -21,48 +21,67 @@ Version channels: `@latest`, `@preview`, `@nightly`
 ## Non-Interactive Usage
 
 ```bash
-# Basic - positional prompt (preferred)
-gemini "Your prompt here"
+# Preferred: -p triggers headless/non-interactive mode
+gemini -p "Your prompt here"
 
 # With model selection
-gemini -m flash "prompt"
-gemini -m pro "prompt"
+gemini -p -m flash "prompt"
+gemini -p -m pro "prompt"
 
 # JSON output for parsing
-gemini -o json "prompt"
+gemini -p -o json "prompt"
 
 # Auto-approve all tool actions
 # ⚠️  WARNING: Only use in trusted repos with no secrets
-gemini --approval-mode=yolo "prompt"
+gemini -p --approval-mode=yolo "prompt"
 
 # Execute prompt then continue interactive
 gemini -i "initial prompt"
+
+# With stdin (context appended to prompt)
+gemini -p "Review this code:" < file.py
 ```
+
+**Important:** `-p/--prompt` is **not deprecated** — it is the documented way to run Gemini in non-interactive mode. The CLI defaults to **interactive** mode when stdin is a TTY; bare positional arguments (e.g., `gemini "prompt"`) will launch an interactive session pre-seeded with the prompt. When stdin is redirected (e.g., `< file.py` or a pipe), Gemini detects non-TTY and runs headless either way, but using `-p` explicitly is portable and reliable.
 
 ## All Options
 
 | Flag | Short | Description |
 |------|-------|-------------|
+| `--prompt <prompt>` | `-p` | **Run in non-interactive (headless) mode** with the given prompt. Appended to stdin if any. |
+| `--prompt-interactive <prompt>` | `-i` | Execute prompt then continue interactive |
 | `--model <model>` | `-m` | Model to use (default: `auto`) |
 | `--output-format <format>` | `-o` | Output: `text`, `json`, `stream-json` |
-| `--approval-mode <mode>` | | `default`, `auto_edit`, `yolo` |
-| `--yolo` | `-y` | **Deprecated** - use `--approval-mode=yolo` |
+| `--approval-mode <mode>` | | `default` (prompt for approval), `auto_edit` (auto-approve edits), `yolo` (auto-approve all), `plan` (read-only mode) |
+| `--yolo` | `-y` | Auto-approve all actions (equivalent to `--approval-mode=yolo`) |
 | `--sandbox` | `-s` | Run in sandbox mode |
-| `--prompt-interactive <prompt>` | `-i` | Execute prompt then continue interactive |
-| `--resume <session>` | `-r` | Resume session: `latest`, index, or UUID |
+| `--resume <session>` | `-r` | Resume session: `latest`, index number, or UUID |
 | `--list-sessions` | | List available sessions |
 | `--delete-session <id>` | | Delete session by index or UUID |
-| `--debug` | `-d` | Debug mode |
+| `--debug` | `-d` | Debug mode (F12 opens debug console) |
+| `--policy <files>` | | Additional policy files or directories (comma-separated or repeated) |
+| `--admin-policy <files>` | | Additional admin policy files or directories |
 | `--allowed-mcp-server-names <names>` | | Allowed MCP servers |
 | `--allowed-tools <tools>` | | **Deprecated** - use Policy Engine |
 | `--include-directories <dirs>` | | Additional workspace directories (max 5) |
 | `--extensions <list>` | `-e` | Extensions to use |
 | `--list-extensions` | `-l` | List available extensions |
 | `--screen-reader` | | Accessibility mode |
-| `--experimental-acp` | | ACP mode (experimental) |
-| `--experimental-zed-integration` | | Zed editor integration (experimental) |
+| `--raw-output` | | Disable output sanitization (⚠️ security risk if model output is untrusted — allows ANSI escape sequences) |
+| `--accept-raw-output-risk` | | Suppress the security warning for `--raw-output` |
+| `--acp` | | Start agent in ACP mode |
+| `--experimental-acp` | | **Deprecated** — use `--acp` |
 
-**Note:** `--prompt` / `-p` is deprecated. Use positional arguments instead: `gemini "prompt"`
+**Note:** Positional arguments (`gemini "prompt"`) work for interactive mode with a pre-seeded prompt, or non-interactive when stdin is redirected. Scripts should always use `gemini -p "prompt"` explicitly.
+
+## Subcommands
+
+```bash
+gemini mcp <cmd>          # Manage MCP servers
+gemini extensions <cmd>   # Manage Gemini CLI extensions (alias: extension)
+gemini skills <cmd>       # Manage agent skills (list/enable/disable/install/link/uninstall)
+gemini hooks <cmd>        # Manage Gemini CLI hooks (migrate from Claude Code)
+```
 
 ## Slash Commands (Interactive)
 
@@ -71,27 +90,27 @@ gemini -i "initial prompt"
 ## Available Models
 
 **Model Selection Modes:**
-- **Auto (Gemini 3)** - Default. System chooses best Gemini 3 model for task
-- **Auto (Gemini 2.5)** - System chooses best Gemini 2.5 model
+- **Auto (Gemini 3)** - Paid/Ultra subscribers. Routes between `gemini-2.5-flash` (simple prompts) and `gemini-3.1-pro-preview` (complex prompts).
+- **Auto (Gemini 2.5)** - Default for most users. Routes between `gemini-2.5-flash` (simple) and `gemini-2.5-pro` (complex).
 - **Manual** - Select specific model via `/model` or `-m` flag
 
-**Gemini 3.x (Current):**
+**Gemini 3.x (Current, still "preview"):**
 - `gemini-3.1-pro-preview` - Most capable, best reasoning (1M input, 64K output)
 - `gemini-3-flash-preview` - Fast, good balance (1M input, 64K output)
-- `gemini-3.1-flash-lite-preview` - Cheapest/fastest, 2.5x faster TTFT (1M input, 64K output)
+- `gemini-3.1-flash-lite-preview` - Cheapest/fastest, 2.5x faster TTFT (1M input, 64K output). Released March 3, 2026.
 
-**Gemini 2.5 (Stable, deprecating June 17, 2026):**
+**Gemini 2.5 (Stable, deprecation date reportedly June 17, 2026 — verify before relying):**
 - `gemini-2.5-pro` - Production stable, complex reasoning (1M input)
 - `gemini-2.5-flash` - Production stable, fast (1M input)
 - `gemini-2.5-flash-lite` - Ultra-efficient, cost-optimized
 
-**Aliases:** `-m pro` → `gemini-3.1-pro-preview`, `-m flash` → `gemini-3-flash-preview`, `-m flash-lite` → `gemini-3.1-flash-lite-preview`
+**Shorthand aliases (verified working in CLI 0.37.1):** `-m pro` → `gemini-3.1-pro-preview`, `-m flash` → `gemini-3-flash-preview`, `-m flash-lite` → `gemini-3.1-flash-lite-preview`. These are documented behavior but may be partial-match shortcuts; prefer full model IDs for reliability.
 
-**Default:** `auto` — system routes between Flash and Pro based on task complexity.
+**Default:** `auto` — routing tier depends on subscription. **Critical:** If you do not have paid Gemini 3 access, `auto` falls back to Gemini 2.5 routing, not Gemini 3.
 
 **Context Windows:** All current models support 1M token input context and 64K output.
 
-**Note:** Gemini 2.5 models scheduled for deprecation June 17, 2026. `/model` does not override sub-agent model selection.
+**Note:** `/model` does not override sub-agent model selection.
 
 ## Built-in Tools
 
@@ -137,7 +156,7 @@ Configure via `GEMINI_SANDBOX` env var: `true`/`false`/`docker`/`podman`/`sandbo
 
 ## Strengths
 
-- **1M token context window** - matches gpt-5.4 and Claude 4.6
+- **1M token context window** - matches gpt-5.4 and Claude Opus 4.7 / Sonnet 4.6
 - **Free tier** - available via Google login (~60 req/min CLI quota). API key free tier is more limited (Flash models only, 5-15 RPM)
 - **Good at research/analysis** - different training data than Claude
 - **Rich tool ecosystem** - built-in search, planning, skills
@@ -146,19 +165,22 @@ Configure via `GEMINI_SANDBOX` env var: `true`/`false`/`docker`/`podman`/`sandbo
 
 ```bash
 # Validate a plan (stdin avoids argv limits)
-gemini "Review this plan for issues:" < plan.md
+gemini -p "Review this plan for issues:" < plan.md
 
 # Get JSON output
-gemini -o json "List 3 improvements for:" < code.py
+gemini -p -o json "List 3 improvements for:" < code.py
 
-# Auto-approve for scripting (--yolo / -y is deprecated)
-gemini --approval-mode=yolo "Refactor this:" < file.py
+# Auto-approve for scripting
+gemini -p --approval-mode=yolo "Refactor this:" < file.py
+
+# Plan mode (read-only — safe exploration)
+gemini -p --approval-mode=plan "What would you change in this code?" < file.py
 
 # Resume latest session
 gemini -r latest
 
 # Use specific model
-gemini -m pro "Complex analysis:" < data.txt
+gemini -p -m pro "Complex analysis:" < data.txt
 ```
 
 ## Troubleshooting
