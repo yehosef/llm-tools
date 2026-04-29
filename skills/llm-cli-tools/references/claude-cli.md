@@ -44,7 +44,7 @@ claude -p "prompt" --system-prompt "You are a security expert"
 
 # Effort level (low/medium/high/xhigh/max)
 claude -p "prompt" --effort high
-claude -p "prompt" --effort xhigh  # Opus 4.7 only, recommended default for agentic tasks
+claude -p "prompt" --effort xhigh  # Opus 4.7 recommended default; falls back to high on Opus 4.6/Sonnet 4.6
 claude -p "prompt" --effort max    # Deepest reasoning (any supported model)
 ```
 
@@ -53,8 +53,8 @@ claude -p "prompt" --effort max    # Deepest reasoning (any supported model)
 | Flag | Description |
 |------|-------------|
 | `-p, --print` | Non-interactive mode (required for scripting) |
-| `--model <model>` | Model: `opus`, `sonnet`, `haiku`, `opusplan`, `best`, `default` or full name |
-| `--effort <level>` | Effort level: `low`, `medium`, `high`, `xhigh`, `max`. `xhigh` is Opus-4.7-only (silently degrades to `high` on older models). |
+| `--model <model>` | Model: `opus`, `sonnet`, `haiku`, `opusplan`, `best`, `default`, `opus[1m]`, `sonnet[1m]`, or full name |
+| `--effort <level>` | Effort level: `low`, `medium`, `high`, `xhigh`, `max`. `xhigh` and `max` supported on Opus 4.7; `xhigh` falls back to `high` on Opus 4.6/Sonnet 4.6. |
 | `--fallback-model <model>` | Fallback if primary overloaded (only with `--print`) |
 | `--output-format <format>` | `text`, `json`, `stream-json` |
 | `--input-format <format>` | Input: `text` (default), `stream-json` |
@@ -84,7 +84,8 @@ claude -p "prompt" --effort max    # Deepest reasoning (any supported model)
 | `--agents <json>` | Define custom agents as JSON |
 | `--betas <betas>` | Beta headers for API requests (API key users only) |
 | `--brief` | Enable `SendUserMessage` tool for agent-to-user communication |
-| `--bare` | Minimal mode: skip hooks, LSP, plugin sync, auto-memory, keychain reads, CLAUDE.md auto-discovery. Sets `CLAUDE_CODE_SIMPLE=1`. Auth is strictly `ANTHROPIC_API_KEY` or `apiKeyHelper`. |
+| `--bare` | Minimal mode: skip hooks, LSP, plugin sync, attribution, auto-memory, background prefetches, keychain reads, CLAUDE.md auto-discovery. Sets `CLAUDE_CODE_SIMPLE=1`. Auth is strictly `ANTHROPIC_API_KEY` or `apiKeyHelper` via `--settings`. Skills still resolve via `/skill-name`. |
+| `--mcp-debug` | **[DEPRECATED]** Use `--debug` instead. |
 | `--chrome` / `--no-chrome` | Enable/disable Chrome integration |
 | `--ide` | Auto-connect to IDE on startup if exactly one valid IDE is available |
 | `--settings <file-or-json>` | Additional settings from file or JSON string |
@@ -129,10 +130,10 @@ claude update           # Check for updates
 - `haiku` → **Claude Haiku 4.5** (`claude-haiku-4-5-20251001`) — fastest for simple tasks. 200K context, 64K output.
 
 **Additional aliases:**
-- `opusplan` — uses Opus in plan mode, switches to Sonnet for execution
+- `opusplan` — uses Opus in plan mode, switches to Sonnet for execution. Plan-mode Opus runs at standard 200K (the automatic 1M upgrade does not apply to `opusplan`).
 - `best` — equivalent to `opus`
-- `default` — clears model override (resolves based on your plan: Opus 4.7 for Max/Team Premium, Sonnet 4.6 for Pro/Standard/API)
-- `opus[1m]`, `sonnet[1m]` — explicit 1M-context variants (for plans where 1M is opt-in)
+- `default` — clears model override (resolves based on your plan: Opus 4.7 for Max/Team Premium/Enterprise pay-as-you-go/API; Sonnet 4.6 for Pro/Team Standard; Sonnet 4.5 for Bedrock/Vertex/Foundry). The Enterprise/API tier shifted from Sonnet 4.6 → Opus 4.7 on April 23, 2026.
+- `opus[1m]`, `sonnet[1m]` — explicit 1M-context variants (for plans where 1M is opt-in). `[1m]` can also be appended to full model names (e.g. `claude-opus-4-7[1m]`).
 
 **Full Model IDs (authoritative):**
 - `claude-opus-4-7`
@@ -140,22 +141,30 @@ claude update           # Check for updates
 - `claude-haiku-4-5-20251001` (dated snapshot; `claude-haiku-4-5` also works as a floating alias)
 
 **1M Context availability:**
-- Max/Team/Enterprise: Opus 1M included, Sonnet 1M requires additional usage
-- Pro / Team Standard: both require additional usage above 200K
-- API key: full 1M access at standard token pricing (no premium beyond 200K)
+- Max, Team, and Enterprise: Opus 1M included with subscription; Sonnet 1M requires extra usage
+- Pro: both require extra usage
+- API / pay-as-you-go: full access, standard token pricing (no premium beyond 200K)
+- To disable 1M context entirely: `CLAUDE_CODE_DISABLE_1M_CONTEXT=1`
 
-**Tokenizer note:** Opus 4.7 uses a new tokenizer (~555K English words ≈ 1M tokens, vs ~750K words for Sonnet 4.6). "1M context" means different amounts of text in each model.
+**Tokenizer note:** Opus 4.7 uses a new tokenizer (~555K words / ~2.5M unicode chars ≈ 1M tokens, vs ~750K words / ~3.4M unicode chars for Sonnet 4.6/Opus 4.6). "1M context" means different amounts of text in each model. The same input may map to 1.0–1.35× more tokens on Opus 4.7 depending on content type.
 
-**Note:** For security reviews, use `opus`. For speed, use `sonnet`. Use `--effort xhigh` with `opus` for the recommended agentic default; `--effort max` for deepest reasoning (slower). `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING=1` only affects Opus 4.6 and Sonnet — Opus 4.7 always uses adaptive reasoning.
+**Effort levels by model:**
+- Opus 4.7: `low`, `medium`, `high`, `xhigh`, `max` — default is `xhigh`
+- Opus 4.6 and Sonnet 4.6: `low`, `medium`, `high`, `max` — default is `high`. `xhigh` silently falls back to `high`.
+- If you set a level the active model does not support, Claude Code falls back to the highest supported level at or below what you set.
+- `max` applies to the current session only (except when set via `CLAUDE_CODE_EFFORT_LEVEL`).
+- `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING=1` reverts Opus 4.6/Sonnet 4.6 to fixed thinking budgets — does not apply to Opus 4.7 (always uses adaptive reasoning).
+
+**Note:** For security reviews, use `opus`. For speed, use `sonnet`. Use `--effort xhigh` with `opus` for the recommended agentic default on Opus 4.7; `--effort max` for deepest analysis (slower, prone to overthinking — test before adopting broadly).
 
 ## Permission Modes
 
 - `default` - Normal permission prompts (**recommended**)
-- `plan` - Planning mode only (read-only)
-- `auto` - Automatic permission decisions (requires Team plan + recent Sonnet/Opus model)
-- `acceptEdits` - Auto-accept file edits (use in trusted repos only)
-- `bypassPermissions` - ⚠️ Skip all checks (dangerous, avoid)
-- `dontAsk` - ⚠️ Never prompt (dangerous, avoid)
+- `plan` - Planning mode only (read-only, no edits)
+- `acceptEdits` - Auto-accept file edits + common filesystem commands (use in trusted repos only)
+- `auto` - Classifier-backed auto-approval; requires: Max/Team/Enterprise/API plan (not Pro), Sonnet 4.6+ or Opus 4.6+, Anthropic API only (not Bedrock/Vertex/Foundry). Team/Enterprise also requires admin to enable it.
+- `dontAsk` - ⚠️ Only pre-approved tools run; everything else is denied (for locked-down CI)
+- `bypassPermissions` - ⚠️ Skip all checks (dangerous — isolated containers/VMs only; requires `--dangerously-skip-permissions` or `--allow-dangerously-skip-permissions` at startup)
 
 ## Session Management
 

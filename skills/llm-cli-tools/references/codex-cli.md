@@ -6,6 +6,8 @@ See [README.md](../../../README.md#prerequisites) for installation instructions.
 
 Quick: `npm install -g @openai/codex` or `brew install codex`
 
+**Version check:** `codex --version` may hang in some environments (known issue). Use `codex exec -V` instead — it returns immediately (e.g. `codex-cli-exec 0.125.0`).
+
 ## Authentication
 
 - `codex login` - ChatGPT OAuth (Plus, Pro, Business, Team, Edu, Enterprise)
@@ -41,6 +43,9 @@ codex exec review
 
 # Resume previous non-interactive session
 codex exec resume
+
+# Ignore user config or rules (useful for isolated CI runs)
+codex exec --ignore-user-config --ignore-rules "prompt"
 ```
 
 ## All Options
@@ -57,7 +62,7 @@ codex exec resume
 | `--image <file>` | `-i` | Attach image(s) to prompt |
 | `--cd <dir>` | `-C` | Set working directory |
 | `--add-dir <dir>` | | Additional writable directories |
-| `--search` | | Enable web search tool (interactive only — not available on `codex exec`) |
+| `--search` | | Enable live web search tool (available in both interactive TUI and `codex exec`) |
 | `--config <key=value>` | `-c` | Override config values (repeatable) |
 | `--oss` | | Use local open-source model provider |
 | `--local-provider <provider>` | | `lmstudio` or `ollama` (pair with `--oss`) |
@@ -68,17 +73,19 @@ codex exec resume
 | `--remote <addr>` | | Connect TUI to remote app server (`ws://` or `wss://`) |
 | `--remote-auth-token-env <var>` | | Env var containing bearer token for remote server |
 
-> **Note on `--yolo`:** OpenAI's CLI reference page documents `--yolo` as an alias for `--dangerously-bypass-approvals-and-sandbox`, but it is **not** present in every installed build (e.g., `codex-cli 0.121.0` on macOS does not have it). Prefer `--dangerously-bypass-approvals-and-sandbox` for portability.
+> **Note on `--yolo`:** OpenAI's CLI reference page documents `--yolo` as an alias for `--dangerously-bypass-approvals-and-sandbox`, but it is **not** present in every installed build (not present in `codex-cli 0.125.0` on macOS). Prefer `--dangerously-bypass-approvals-and-sandbox` for portability.
 
 ### `codex exec` Additional Flags
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--json` | | JSONL output |
+| `--json` | | JSONL output (includes reasoning-token usage) |
 | `--output-last-message <file>` | `-o` | Write final message to file |
 | `--output-schema <file>` | | JSON Schema for structured response |
 | `--ephemeral` | | Skip session persistence |
 | `--skip-git-repo-check` | | Allow non-git directories |
+| `--ignore-user-config` | | Do not load `~/.codex/config.toml` (auth still uses `CODEX_HOME`) |
+| `--ignore-rules` | | Do not load user or project `.rules` files |
 | `--color <mode>` | | `always`, `never`, `auto` |
 
 ## Commands
@@ -107,9 +114,6 @@ codex mcp login        # OAuth login for HTTP MCP server
 codex mcp logout       # Remove MCP OAuth credentials
 codex mcp remove       # Delete MCP server
 
-# Plugin marketplaces (new in 0.121.0)
-codex marketplace add  # Add a remote marketplace repository (GitHub, git URL, local dir, or marketplace.json URL)
-
 # Feature flags
 codex features list    # Show all feature flags
 codex features enable  # Enable a feature flag
@@ -117,13 +121,22 @@ codex features disable # Disable a feature flag
 
 # Cloud tasks (experimental)
 codex cloud            # Cloud task management
-codex cloud list       # List recent cloud tasks (--json, --limit 1-20)
+codex cloud exec       # Submit a new Codex Cloud task without launching the TUI
+codex cloud status     # Show status of a Codex Cloud task
+codex cloud list       # List recent cloud tasks
+codex cloud apply      # Apply diff for a cloud task locally
+codex cloud diff       # Show unified diff for a cloud task
 
 # Desktop & servers
 codex app              # Launch desktop app (macOS; downloads installer if missing)
 codex app-server       # Local app server (experimental)
 codex exec-server      # Standalone exec-server service (experimental, added in 0.119.0)
 codex mcp-server       # Run Codex as MCP server (stdio, experimental)
+
+# Plugin management
+codex plugin marketplace add      # Add marketplace repository (GitHub, git URL, local dir, or marketplace.json URL)
+codex plugin marketplace upgrade  # Upgrade configured marketplace
+codex plugin marketplace remove   # Remove marketplace
 ```
 
 ## Sandbox Modes
@@ -142,19 +155,20 @@ codex mcp-server       # Run Codex as MCP server (stdio, experimental)
 ## Available Models
 
 **Current (available in Codex CLI):**
-- `gpt-5.4` - **Flagship default** - 1.05M total window (922K input + 128K output), native computer use
+- `gpt-5.5` - **Newest flagship** - available in Codex when signed in via ChatGPT (not API-key auth). Recommended for complex coding, computer use, knowledge work. Context window: presumed to match the gpt-5.4 family (~1M input, 128K output) but not yet confirmed publicly — verify in your account.
+- `gpt-5.4` - **Default (API-key auth)** - 1.05M total window (922K input + 128K output), native computer use. Use if `gpt-5.5` isn't available in your account.
 - `gpt-5.4-mini` - Fast/efficient, 400K context (128K output), ~2x faster at ~1/3 cost
-- `gpt-5.3-codex` - Code-specialized, 400K context (128K output)
-- `gpt-5.3-codex-spark` - Near-instant real-time coding (ChatGPT Pro only, 128K context)
+- `gpt-5.3-codex` - Code-specialized (powers gpt-5.4 coding capabilities), 400K context (128K output)
+- `gpt-5.3-codex-spark` - Near-instant real-time coding. Research preview, ChatGPT Pro only; not available via API key. 128K context, text-only.
 
 **Reasoning Models:**
 - `o3` - Most capable reasoning model
-- `o4-mini` - Lighter reasoning model. ⚠️ OpenAI's docs describe it as "succeeded by GPT-5 mini" — treat as on a deprecation path.
+- `o4-mini` - Lighter reasoning model. ⚠️ Retired from ChatGPT (Feb 2026) but still available via API and Codex CLI.
 
 **API-only (NOT available via Codex CLI):**
-- `gpt-5.4-nano` - Lightest/cheapest, 400K context. Available via the OpenAI API only; Codex CLI's model list does not include it.
+- `gpt-5.4-nano` - Lightest/cheapest, 400K context. OpenAI API only; not in Codex CLI model list.
 
-**Note:** Default (no -m) uses `gpt-5.4`. Use `-m o3` for complex reasoning tasks, `-m gpt-5.4-mini` for speed/cost savings.
+**Note:** Default (no -m) uses `gpt-5.4` (with API key) or `gpt-5.5` (with ChatGPT auth). Use `-m o3` for complex reasoning tasks, `-m gpt-5.4-mini` for speed/cost savings.
 
 ## Config File (`~/.codex/config.toml`)
 

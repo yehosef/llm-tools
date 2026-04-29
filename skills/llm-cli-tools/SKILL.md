@@ -60,12 +60,12 @@ claude -p "Review:" --model sonnet < file.py
 | Task Type | Primary | Why | Backup |
 |-----------|---------|-----|--------|
 | Large context (>200k) | Gemini or Codex | All have ~1M context | Claude opus (1M) |
-| Code review | Codex (`gpt-5.4`) | 1M context + code-specialized | Claude opus |
+| Code review | Codex (`gpt-5.5` ChatGPT auth, `gpt-5.4` API) | 1M context + code-specialized | Claude opus |
 | Security audit | Claude opus `--effort xhigh` | Thorough analysis (Opus 4.7) | Codex o3 |
 | Quick validation | Gemini (free) | Fast, no cost | Codex `gpt-5.4-mini` |
 | Reasoning/logic | Codex o3 | Reasoning model | Claude opus `--effort max` |
 | Research | Gemini (`-m pro`) | Large context + web | Claude opus |
-| Full-repo review | Codex (`gpt-5.4`) | 1M context + coding | Gemini 3.1 pro |
+| Full-repo review | Codex (`gpt-5.5`/`gpt-5.4`) | 1M context + coding | Gemini 3.1 pro |
 
 ## Parallel Execution
 
@@ -133,6 +133,7 @@ command -v gemini >/dev/null && gemini -p "prompt" || echo "Gemini not available
 | Gemini | `gemini-3-flash-preview` | 1M tokens | 64K tokens |
 | Gemini | `gemini-3.1-flash-lite-preview` | 1M tokens | 64K tokens |
 | Gemini | `gemini-2.5-pro` / `flash` | 1M tokens | 64K tokens |
+| Codex | `gpt-5.5` (ChatGPT auth) | ~1M tokens (unconfirmed) | 128K tokens |
 | Codex | `gpt-5.4` | 1.05M tokens (922K in + 128K out) | 128K tokens |
 | Codex | `gpt-5.4-mini` | 400K tokens | 128K tokens |
 | Codex | `gpt-5.3-codex` | 400K tokens | 128K tokens |
@@ -211,12 +212,12 @@ All tools support session persistence - build context once, ask follow-ups witho
 | Tool | Quality | Fast | Reasoning |
 |------|---------|------|-----------|
 | Gemini | `-m pro` | `-m flash` | pro |
-| Codex | `-m gpt-5.4` (default) | `-m gpt-5.4-mini` | `-m o3` |
+| Codex | `-m gpt-5.5` (ChatGPT) / `-m gpt-5.4` (API) | `-m gpt-5.4-mini` | `-m o3` |
 | Claude | `--model opus` | `--model sonnet` | `--model opus --effort xhigh` |
 
-**Full model names:** Gemini: `gemini-3.1-pro-preview`, `gemini-3-flash-preview`, `gemini-3.1-flash-lite-preview`. Codex: `gpt-5.4` (default), `gpt-5.4-mini`, `gpt-5.3-codex`, `o3`, `o4-mini`. Claude: `opus` (4.7, default), `sonnet` (4.6), `haiku` (4.5).
+**Full model names:** Gemini: `gemini-3.1-pro-preview`, `gemini-3-flash-preview`, `gemini-3.1-flash-lite-preview`. Codex: `gpt-5.5` (ChatGPT auth, default when available), `gpt-5.4` (API-key default), `gpt-5.4-mini`, `gpt-5.3-codex`, `o3`, `o4-mini`. Claude: `opus` (4.7, default), `sonnet` (4.6), `haiku` (4.5).
 
-**Claude effort levels:** `low`, `medium`, `high`, `xhigh`, `max`. `xhigh` is Opus-4.7-specific ("best results for most coding and agentic tasks") and silently degrades to `high` on older models. `max` is deepest reasoning but slower.
+**Claude effort levels:** `low`, `medium`, `high`, `xhigh`, `max`. Opus 4.7 supports all five (default `xhigh`). Opus 4.6/Sonnet 4.6 default `high`; `xhigh` falls back to `high` on those. `max` is deepest reasoning, slower, prone to overthinking.
 
 ## Common Patterns
 

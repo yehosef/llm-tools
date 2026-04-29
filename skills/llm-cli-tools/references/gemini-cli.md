@@ -55,15 +55,16 @@ gemini -p "Review this code:" < file.py
 | `--approval-mode <mode>` | | `default` (prompt for approval), `auto_edit` (auto-approve edits), `yolo` (auto-approve all), `plan` (read-only mode) |
 | `--yolo` | `-y` | Auto-approve all actions (equivalent to `--approval-mode=yolo`) |
 | `--sandbox` | `-s` | Run in sandbox mode |
-| `--resume <session>` | `-r` | Resume session: `latest`, index number, or UUID |
+| `--resume <session>` | `-r` | Resume session: `latest` or index number |
 | `--list-sessions` | | List available sessions |
-| `--delete-session <id>` | | Delete session by index or UUID |
+| `--delete-session <id>` | | Delete session by index number |
+| `--worktree [name]` | `-w` | Start in a new git worktree (name auto-generated if omitted; requires `experimental.worktrees` enabled) |
 | `--debug` | `-d` | Debug mode (F12 opens debug console) |
 | `--policy <files>` | | Additional policy files or directories (comma-separated or repeated) |
 | `--admin-policy <files>` | | Additional admin policy files or directories |
 | `--allowed-mcp-server-names <names>` | | Allowed MCP servers |
 | `--allowed-tools <tools>` | | **Deprecated** - use Policy Engine |
-| `--include-directories <dirs>` | | Additional workspace directories (max 5) |
+| `--include-directories <dirs>` | | Additional workspace directories (comma-separated or repeated) |
 | `--extensions <list>` | `-e` | Extensions to use |
 | `--list-extensions` | `-l` | List available extensions |
 | `--screen-reader` | | Accessibility mode |
@@ -77,10 +78,10 @@ gemini -p "Review this code:" < file.py
 ## Subcommands
 
 ```bash
-gemini mcp <cmd>          # Manage MCP servers
-gemini extensions <cmd>   # Manage Gemini CLI extensions (alias: extension)
-gemini skills <cmd>       # Manage agent skills (list/enable/disable/install/link/uninstall)
-gemini hooks <cmd>        # Manage Gemini CLI hooks (migrate from Claude Code)
+gemini mcp <cmd>          # add / remove / list / enable / disable
+gemini extensions <cmd>   # install / uninstall / list / update / enable / disable / link / new / validate / config  (alias: extension)
+gemini skills <cmd>       # list [--all] / enable / disable / install / link / uninstall  (alias: skill)
+gemini hooks <cmd>        # migrate  (migrate hooks from Claude Code)
 ```
 
 ## Slash Commands (Interactive)
@@ -94,12 +95,12 @@ gemini hooks <cmd>        # Manage Gemini CLI hooks (migrate from Claude Code)
 - **Auto (Gemini 2.5)** - Default for most users. Routes between `gemini-2.5-flash` (simple) and `gemini-2.5-pro` (complex).
 - **Manual** - Select specific model via `/model` or `-m` flag
 
-**Gemini 3.x (Current, still "preview"):**
+**Gemini 3.x (Current, all still in preview — GA not yet announced):**
 - `gemini-3.1-pro-preview` - Most capable, best reasoning (1M input, 64K output)
 - `gemini-3-flash-preview` - Fast, good balance (1M input, 64K output)
 - `gemini-3.1-flash-lite-preview` - Cheapest/fastest, 2.5x faster TTFT (1M input, 64K output). Released March 3, 2026.
 
-**Gemini 2.5 (Stable, deprecation date reportedly June 17, 2026 — verify before relying):**
+**Gemini 2.5 (Stable; deprecation June 17, 2026 on Gemini API, October 16, 2026 on Vertex AI):**
 - `gemini-2.5-pro` - Production stable, complex reasoning (1M input)
 - `gemini-2.5-flash` - Production stable, fast (1M input)
 - `gemini-2.5-flash-lite` - Ultra-efficient, cost-optimized
@@ -181,6 +182,9 @@ gemini -r latest
 
 # Use specific model
 gemini -p -m pro "Complex analysis:" < data.txt
+
+# Start in isolated git worktree (requires experimental.worktrees enabled)
+gemini -w my-feature-branch
 ```
 
 ## Troubleshooting

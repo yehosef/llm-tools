@@ -139,18 +139,22 @@ echo ""
 echo "3. Stdin Behavior (critical — validates documented patterns)"
 echo "-------------------------------------------------------------------"
 
+# Use a neutral lookup framing (configuration ID) instead of "secret word",
+# which Opus 4.7 / Haiku 4.5 sometimes refuse as suspected prompt injection.
 SECRET="mango-$(date +%s)"
 TMPFILE=$(mktemp)
-echo "The secret word is $SECRET" > "$TMPFILE"
+echo "The configuration ID for this build is $SECRET." > "$TMPFILE"
 trap 'rm -f "$TMPFILE"' EXIT
+
+LOOKUP_PROMPT="What is the configuration ID mentioned in the text? Reply with ONLY the ID, no other words."
 
 # Test: gemini "prompt" < file — should see file content
 if $HAS_GEMINI; then
-  RESULT=$(run_quiet 60 bash -c 'gemini "What is the secret word in the text? Reply with ONLY that word." < "'"$TMPFILE"'"' || true)
+  RESULT=$(run_quiet 60 bash -c 'gemini "'"$LOOKUP_PROMPT"'" < "'"$TMPFILE"'"' || true)
   if echo "$RESULT" | grep -qi "$SECRET"; then
     pass "gemini stdin with positional prompt (file content visible)"
   else
-    fail "gemini stdin with positional prompt" "secret not found. Got: $(echo "$RESULT" | tail -3)"
+    fail "gemini stdin with positional prompt" "ID not found. Got: $(echo "$RESULT" | tail -3)"
   fi
 else
   skip "gemini stdin" "not available"
@@ -158,11 +162,11 @@ fi
 
 # Test: claude -p "prompt" < file — should see file content
 if $HAS_CLAUDE; then
-  RESULT=$(run_quiet 60 bash -c 'claude -p "What is the secret word in the text? Reply with ONLY that word." --model haiku < "'"$TMPFILE"'"' || true)
+  RESULT=$(run_quiet 60 bash -c 'claude -p "'"$LOOKUP_PROMPT"'" --model haiku < "'"$TMPFILE"'"' || true)
   if echo "$RESULT" | grep -qi "$SECRET"; then
     pass "claude stdin with positional prompt (file content visible)"
   else
-    fail "claude stdin with positional prompt" "secret not found. Got: $(echo "$RESULT" | tail -3)"
+    fail "claude stdin with positional prompt" "ID not found. Got: $(echo "$RESULT" | tail -3)"
   fi
 else
   skip "claude stdin" "not available"
@@ -170,11 +174,11 @@ fi
 
 # Test: codex exec "prompt" < file — stdin appended as <stdin> block
 if $HAS_CODEX; then
-  RESULT=$(run_quiet 60 bash -c 'codex exec "What is the secret word in the text I provided? Reply ONLY that word, or none if no text." < "'"$TMPFILE"'"' || true)
+  RESULT=$(run_quiet 60 bash -c 'codex exec "'"$LOOKUP_PROMPT"'" < "'"$TMPFILE"'"' || true)
   if echo "$RESULT" | grep -qi "$SECRET"; then
     pass "codex stdin with positional prompt (file content visible via <stdin> block)"
   else
-    fail "codex stdin with positional prompt" "secret not found. Got: $(echo "$RESULT" | tail -3)"
+    fail "codex stdin with positional prompt" "ID not found. Got: $(echo "$RESULT" | tail -3)"
   fi
 fi
 
@@ -185,17 +189,17 @@ if $HAS_CODEX; then
   if echo "$RESULT" | grep -qi "$SECRET"; then
     pass "codex stdin as prompt (no positional arg)"
   else
-    fail "codex stdin as prompt" "secret not found. Got: $(echo "$RESULT" | tail -3)"
+    fail "codex stdin as prompt" "needle not found. Got: $(echo "$RESULT" | tail -3)"
   fi
 fi
 
 # Test: codex bash pipe workaround
 if $HAS_CODEX; then
-  RESULT=$(run_quiet 90 bash -c '{ echo "What is the secret word? Reply with ONLY that word."; cat "'"$TMPFILE"'"; } | codex exec' || true)
+  RESULT=$(run_quiet 90 bash -c '{ echo "'"$LOOKUP_PROMPT"'"; cat "'"$TMPFILE"'"; } | codex exec' || true)
   if echo "$RESULT" | grep -qi "$SECRET"; then
     pass "codex bash pipe workaround (prompt+file via stdin)"
   else
-    fail "codex bash pipe workaround" "secret not found. Got: $(echo "$RESULT" | tail -3)"
+    fail "codex bash pipe workaround" "ID not found. Got: $(echo "$RESULT" | tail -3)"
   fi
 fi
 
@@ -208,7 +212,7 @@ echo "-------------------------------------------------------------------"
 # what the docs claim, the skill is already stale. Failing loudly here
 # surfaces that rot early. Update both docs and these assertions together.
 
-DOCS_CODEX_DEFAULT="gpt-5.4"     # If this changes, update SKILL.md + codex-cli.md + README.md
+DOCS_CODEX_DEFAULTS="gpt-5.5 gpt-5.4"     # Accept either: gpt-5.5 (ChatGPT auth) or gpt-5.4 (API-key auth)
 DOCS_CLAUDE_DEFAULT_IDS="claude-opus-4-7 claude-sonnet-4-6"  # Accept either as current default
 
 if $HAS_GEMINI; then
@@ -233,10 +237,14 @@ if $HAS_CODEX; then
   RESULT=$(run_verbose 60 codex exec "Say OK" || true)
   MODEL=$(echo "$RESULT" | grep "^model:" | head -1 | sed 's/model: //')
   if [ -n "$MODEL" ]; then
-    if [ "$MODEL" = "$DOCS_CODEX_DEFAULT" ]; then
+    OK=false
+    for want in $DOCS_CODEX_DEFAULTS; do
+      [ "$MODEL" = "$want" ] && OK=true && break
+    done
+    if $OK; then
       pass "codex default model ($MODEL matches docs)"
     else
-      fail "codex default model" "got '$MODEL', docs say '$DOCS_CODEX_DEFAULT' — update SKILL.md/codex-cli.md/README.md"
+      fail "codex default model" "got '$MODEL', docs expect one of: $DOCS_CODEX_DEFAULTS — update SKILL.md/codex-cli.md/README.md"
     fi
   else
     fail "codex default model" "could not detect model from output"

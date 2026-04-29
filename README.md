@@ -24,8 +24,8 @@ Claude will orchestrate the appropriate tools and synthesize the results.
 
 | Task Type | Primary Model | Why |
 |-----------|---------------|-----|
-| Large context (>200k) | Gemini, Codex (gpt-5.4), or Claude opus | All have ~1M token window |
-| Code review | Codex (gpt-5.4) | Code-specialized, 1M context |
+| Large context (>200k) | Gemini, Codex (gpt-5.5/gpt-5.4), or Claude opus | All have ~1M token window |
+| Code review | Codex (gpt-5.5 ChatGPT auth, gpt-5.4 API) | Code-specialized, 1M context |
 | Security audit | Claude opus (`--effort xhigh`) | Thorough analysis (Opus 4.7) |
 | Quick validation | Gemini | Free tier |
 | Reasoning/logic | Codex o3 | Reasoning model |
@@ -35,7 +35,7 @@ Claude will orchestrate the appropriate tools and synthesize the results.
 | Tool | Provider | Best For |
 |------|----------|----------|
 | `gemini` | Google | Large context (1M tokens), research, free tier |
-| `codex` | OpenAI | Code review, GPT-5.4 flagship, o3 for reasoning |
+| `codex` | OpenAI | Code review, GPT-5.5 (ChatGPT auth) / GPT-5.4 (API) flagship, o3 for reasoning |
 | `claude` | Anthropic | Security analysis, fresh context, Opus 4.7 (1M context) |
 
 ## Installation
