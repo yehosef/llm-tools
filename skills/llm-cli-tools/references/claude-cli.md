@@ -236,6 +236,13 @@ claude -w feature-branch "Implement auth module"
 
 # Ephemeral session (no persistence)
 claude -p "Quick check:" --no-session-persistence < file.py
+
+# Image / multimodal input — no dedicated -i flag in the CLI for local images.
+# Reference the path in the prompt; Claude's Read tool fetches it (supports images, PDF).
+claude -p "Describe what's in ./screenshot.png"
+claude -p "Compare ./before.png and ./after.png — what changed?"
+
+# --file is for API-uploaded file resources (file_id:path), not local file attach.
 ```
 
 ## Use Cases for Fresh Claude Context

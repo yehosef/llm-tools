@@ -185,6 +185,12 @@ gemini -p -m pro "Complex analysis:" < data.txt
 
 # Start in isolated git worktree (requires experimental.worktrees enabled)
 gemini -w my-feature-branch
+
+# Image / multimodal input — no dedicated flag; reference path in prompt
+# and the built-in read_file tool loads it (supports images, audio, PDF).
+# File must live inside the workspace or an --include-directories path.
+gemini -p "Describe what's in ./screenshot.png"
+gemini -p "Compare ./before.png and ./after.png — what changed?"
 ```
 
 ## Troubleshooting

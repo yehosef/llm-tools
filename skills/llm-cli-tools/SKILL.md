@@ -66,6 +66,7 @@ claude -p "Review:" --model sonnet < file.py
 | Reasoning/logic | Codex o3 | Reasoning model | Claude opus `--effort max` |
 | Research | Gemini (`-m pro`) | Large context + web | Claude opus |
 | Full-repo review | Codex (`gpt-5.5`/`gpt-5.4`) | 1M context + coding | Gemini 3.1 pro |
+| Image / multimodal | Codex (`-i screenshot.png`) | Native flag, fastest path | Gemini (path in prompt) |
 
 ## Parallel Execution
 
@@ -154,6 +155,18 @@ claude -p "Review:" --model opus < all-source.txt
 **Auto-routing by size:** If input fits in ~200K, any model works. Above 200K, use Gemini, Codex gpt-5.4, or Claude Opus/Sonnet on a plan that includes 1M context.
 
 ## Feeding Files to Models
+
+### Image / Multimodal Input
+
+| Tool | Mechanism | Example |
+|------|-----------|---------|
+| Codex | Dedicated flag `-i / --image` (repeatable) | `codex exec -i shot.png "describe"` |
+| Gemini | Reference path in prompt → built-in `read_file` tool loads it | `gemini -p "describe ./shot.png"` |
+| Claude | Reference path in prompt → built-in Read tool loads it | `claude -p "describe ./shot.png"` |
+
+⚠️ **`-i` flag collision:** In **Codex**, `-i` means `--image`. In **Gemini**, `-i` means `--prompt-interactive` (run prompt then stay interactive). Don't confuse them — copying a Codex command to Gemini won't attach an image.
+
+For Gemini and Claude, the file must live inside the workspace (or, for Gemini, an `--include-directories` path). Both support images and PDF; Gemini also supports audio.
 
 ### Stdin Support
 
