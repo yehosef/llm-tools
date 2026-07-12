@@ -99,9 +99,12 @@ echo "-------------------------------------------------------------------"
 NEEDLE="elephant-$(date +%s)"
 
 if $HAS_GEMINI; then
-  RESULT=$(run_quiet 60 gemini "Reply with ONLY the word: $NEEDLE" || true)
+  RESULT=$(run_verbose 60 gemini -p "Reply with ONLY the word: $NEEDLE" || true)
   if echo "$RESULT" | grep -q "$NEEDLE"; then
     pass "gemini basic prompt"
+  elif echo "$RESULT" | grep -q "IneligibleTierError"; then
+    skip "gemini live calls" "consumer/free credentials are no longer supported; use Antigravity CLI or enterprise/paid API access"
+    HAS_GEMINI=false
   elif [ -z "$RESULT" ]; then
     fail "gemini basic prompt" "empty output (rate limited or timeout?)"
   else
@@ -140,7 +143,7 @@ echo "3. Stdin Behavior (critical — validates documented patterns)"
 echo "-------------------------------------------------------------------"
 
 # Use a neutral lookup framing (configuration ID) instead of "secret word",
-# which Opus 4.7 / Haiku 4.5 sometimes refuse as suspected prompt injection.
+# which some models may refuse as suspected prompt injection.
 SECRET="mango-$(date +%s)"
 TMPFILE=$(mktemp)
 echo "The configuration ID for this build is $SECRET." > "$TMPFILE"
@@ -212,8 +215,8 @@ echo "-------------------------------------------------------------------"
 # what the docs claim, the skill is already stale. Failing loudly here
 # surfaces that rot early. Update both docs and these assertions together.
 
-DOCS_CODEX_DEFAULTS="gpt-5.5 gpt-5.4"     # Accept either: gpt-5.5 (ChatGPT auth) or gpt-5.4 (API-key auth)
-DOCS_CLAUDE_DEFAULT_IDS="claude-opus-4-7 claude-sonnet-4-6"  # Accept either as current default
+DOCS_CODEX_DEFAULTS="gpt-5.6-sol gpt-5.6-terra gpt-5.6-luna gpt-5.5"  # GPT-5.6 family is current; user config may intentionally override it
+DOCS_CLAUDE_CURRENT_IDS="claude-fable-5 claude-opus-4-8 claude-opus-4-7 claude-sonnet-5 claude-sonnet-4-6 claude-haiku-4-5"
 
 if $HAS_GEMINI; then
   RESULT=$(run_quiet 60 gemini -p "Say OK" || true)
@@ -261,24 +264,24 @@ fi
 if $HAS_CLAUDE; then
   # Probe actual model used via JSON output's modelUsage map
   RESULT=$(run_quiet 30 claude -p "Reply ONLY: OK" --output-format json || true)
-  USED_MODEL=$(echo "$RESULT" | grep -oE 'claude-(opus|sonnet|haiku)-[0-9-]+' | sort -u | tr '\n' ' ')
+  USED_MODEL=$(echo "$RESULT" | grep -oE 'claude-(fable|opus|sonnet|haiku)-[0-9-]+' | sort -u | tr '\n' ' ')
   if [ -n "$USED_MODEL" ]; then
     OK=false
-    for want in $DOCS_CLAUDE_DEFAULT_IDS; do
+    for want in $DOCS_CLAUDE_CURRENT_IDS; do
       echo "$USED_MODEL" | grep -q "$want" && OK=true && break
     done
     if $OK; then
       pass "claude default model ($USED_MODEL matches docs)"
     else
-      fail "claude default model" "got '$USED_MODEL', docs expect one of: $DOCS_CLAUDE_DEFAULT_IDS — refresh claude-cli.md"
+      fail "claude default model" "got '$USED_MODEL', docs recognize: $DOCS_CLAUDE_CURRENT_IDS — refresh claude-cli.md"
     fi
   else
     skip "claude model detection" "could not parse modelUsage from JSON output"
   fi
 
-  # Assert --effort accepts xhigh (Opus 4.7 only; catches CLI regression)
-  if claude --help 2>&1 | grep -q -- "--effort.*xhigh"; then
-    pass "claude --effort supports xhigh (Opus 4.7)"
+  # Assert --effort exposes xhigh in the current CLI.
+  if claude --help 2>&1 | tr '\n' ' ' | grep -q -- "--effort.*xhigh"; then
+    pass "claude --effort supports xhigh"
   else
     fail "claude --effort xhigh" "not in help — docs claim xhigh support, CLI disagrees"
   fi

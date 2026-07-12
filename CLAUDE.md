@@ -25,12 +25,12 @@ When CLI tools update their models:
 1. Update the relevant `references/<tool>-cli.md`
 2. Update routing tables in `SKILL.md` (Quick Reference, Task Routing, Model Selection, Context Windows)
 3. Update `README.md` task routing and supported tools tables
-4. Run `bash skills/llm-cli-tools/test/validate.sh` from a plain terminal (not inside Claude Code)
+4. Run `bash skills/llm-cli-tools/test/validate.sh`
 
 ## Testing
 
 ```bash
-# Run from plain terminal (Claude tests are skipped inside Claude Code)
+# Tests may make live model calls and consume quota
 bash skills/llm-cli-tools/test/validate.sh
 ```
 

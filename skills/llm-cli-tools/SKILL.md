@@ -43,7 +43,7 @@ claude -p "Review:" --model sonnet < file.py
 - Don't send secrets, credentials, or PII
 - Consider if code is proprietary/sensitive
 
-**Auto-approval modes**: Avoid `--yolo`, `--full-auto`, `bypassPermissions` unless in a trusted, isolated environment with no secrets.
+**Auto-approval modes**: Avoid `--yolo`, `--dangerously-bypass-approvals-and-sandbox`, and `bypassPermissions` unless in a trusted, isolated environment with no secrets. Codex `--full-auto` is deprecated; use an explicit sandbox.
 
 ---
 
@@ -59,14 +59,16 @@ claude -p "Review:" --model sonnet < file.py
 
 | Task Type | Primary | Why | Backup |
 |-----------|---------|-----|--------|
-| Large context (>200k) | Gemini or Codex | All have ~1M context | Claude opus (1M) |
-| Code review | Codex (`gpt-5.5` ChatGPT auth, `gpt-5.4` API) | 1M context + code-specialized | Claude opus |
-| Security audit | Claude opus `--effort xhigh` | Thorough analysis (Opus 4.7) | Codex o3 |
-| Quick validation | Gemini (free) | Fast, no cost | Codex `gpt-5.4-mini` |
-| Reasoning/logic | Codex o3 | Reasoning model | Claude opus `--effort max` |
-| Research | Gemini (`-m pro`) | Large context + web | Claude opus |
-| Full-repo review | Codex (`gpt-5.5`/`gpt-5.4`) | 1M context + coding | Gemini 3.1 pro |
-| Image / multimodal | Codex (`-i screenshot.png`) | Native flag, fastest path | Gemini (path in prompt) |
+| Large context (>300k) | Claude opus/sonnet | 1M context on eligible plans; Codex CLI currently caps at 372K | Gemini 3.1 Pro / 3.5 Flash (1M) for enterprise/API users |
+| Code review | Codex (`gpt-5.6-sol`) | Current frontier coding model | Claude opus or sonnet |
+| Security audit | Claude opus `--effort xhigh` | Thorough analysis (Opus 4.8 on Anthropic API) | Codex `gpt-5.6-sol` (high/xhigh) |
+| Quick validation | Codex `gpt-5.6-luna` or Claude haiku | Fast, lower-cost options | Gemini `gemini-3.1-flash-lite` where available |
+| Reasoning/logic | Claude opus or Codex `gpt-5.6-sol` | Strong general reasoning | Gemini `gemini-3.1-pro-preview` |
+| Long autonomous work | Claude fable | Built for long-horizon agentic runs | Codex `gpt-5.6-sol` with `ultra` effort (auto task delegation) |
+| Research | Codex `gpt-5.6-sol --search` | Native live web search | Gemini (Google Search grounding) for enterprise/API users |
+| Full-repo review | Claude opus (1M) or Codex `gpt-5.6-sol` (≤372K) | Context size vs coding specialization tradeoff | Gemini 3.1 Pro (1M) |
+| Image input | Codex (`-i screenshot.png`) | Native flag, fastest path | Claude/Gemini (path in prompt) |
+| Video / audio / PDF | Gemini (`gemini-3.5-flash`) | Only tool with video+audio input; strong multimodal | Claude (PDF/images via Read) |
 
 ## Parallel Execution
 
@@ -97,7 +99,7 @@ wait
 |-----------|------------|--------|
 | 3/3 agree | HIGH | Accept result |
 | 2/3 agree | MEDIUM | Note dissent, likely accept |
-| All differ | LOW | Use reasoning model (o3) as tiebreaker |
+| All differ | LOW | Use a frontier reasoning model (Claude opus or `gpt-5.6-sol` at high effort) as tiebreaker |
 
 When synthesizing:
 1. Identify common findings across models
@@ -107,7 +109,7 @@ When synthesizing:
 
 ```bash
 # Tie-breaker: feed conflicting outputs to reasoning model
-codex exec -m o3 "Gemini found X, Codex found Y. Which is correct and why?"
+codex exec -m gpt-5.6-sol "Gemini found X, Codex found Y. Which is correct and why?"
 ```
 
 ## Error Recovery
@@ -130,29 +132,25 @@ command -v gemini >/dev/null && gemini -p "prompt" || echo "Gemini not available
 
 | Tool | Model | Input | Output |
 |------|-------|-------|--------|
-| Gemini | `gemini-3.1-pro-preview` | 1M tokens | 64K tokens |
-| Gemini | `gemini-3-flash-preview` | 1M tokens | 64K tokens |
-| Gemini | `gemini-3.1-flash-lite-preview` | 1M tokens | 64K tokens |
-| Gemini | `gemini-2.5-pro` / `flash` | 1M tokens | 64K tokens |
-| Codex | `gpt-5.5` (ChatGPT auth) | ~1M tokens (unconfirmed) | 128K tokens |
-| Codex | `gpt-5.4` | 1.05M tokens (922K in + 128K out) | 128K tokens |
-| Codex | `gpt-5.4-mini` | 400K tokens | 128K tokens |
-| Codex | `gpt-5.3-codex` | 400K tokens | 128K tokens |
-| Claude | `opus` (4.7, default) | 1M tokens* | 128K tokens |
-| Claude | `sonnet` (4.6) | 1M tokens* | 64K tokens |
+| Gemini | `gemini-3.1-pro-preview` / `gemini-3.5-flash` / `gemini-3.1-flash-lite` | 1M tokens | 64K tokens |
+| Codex | `gpt-5.6-sol` / `-terra` / `-luna` | 372K tokens (CLI catalog; API spec is 1.05M) | 128K tokens |
+| Codex | `gpt-5.4` (legacy) | Up to 1M tokens | 128K tokens |
+| Claude | `fable` (Fable 5) | 1M tokens | 128K tokens |
+| Claude | `opus` (Opus 4.8 on Anthropic API) | 1M tokens* | 128K tokens |
+| Claude | `sonnet` (Sonnet 5) | 1M tokens* | 128K tokens |
 | Claude | `haiku` (4.5) | 200K tokens | 64K tokens |
 
-*1M context for Claude Opus/Sonnet requires Max/Team/Enterprise plan for Opus (included) or API key access; Pro and Standard tiers incur extra usage charges above 200K. Opus 4.7 uses a new tokenizer (~555K English words ≈ 1M tokens, vs ~750K for Sonnet 4.6).
+*Claude 1M availability depends on model, provider, and plan. Fable 5, Opus 4.8, and Opus 4.7 use 1M context on the Anthropic API. Subscription access and Sonnet 1M may require usage credits.
 
-**All three tools support ~1M context.** Gemini (all models), Codex gpt-5.4, and Claude Opus 4.7 / Sonnet 4.6 all support 1M input.
+**Claude and Gemini reach 1M context; current Codex GPT-5.6 sessions cap at ~372K in the CLI** (the older `gpt-5.4` still reaches 1M there). Gemini CLI stopped serving consumer/free, Google AI Pro, and Google AI Ultra accounts on June 18, 2026; enterprise licenses and paid API-key access remain supported.
 
 **For large context tasks (code review, log analysis, full-repo review):**
 ```bash
-# 1M context with Opus 4.7
+# 1M context with the current Opus alias
 claude -p "Review:" --model opus < all-source.txt
 ```
 
-**Auto-routing by size:** If input fits in ~200K, any model works. Above 200K, use Gemini, Codex gpt-5.4, or Claude Opus/Sonnet on a plan that includes 1M context.
+**Auto-routing by size:** If input fits in ~200K, any model works. 200K–350K: any current model except Claude haiku. Above ~350K, use Claude Opus/Sonnet or Gemini 3.x on a plan that includes 1M context (or legacy Codex gpt-5.4).
 
 ## Feeding Files to Models
 
@@ -216,21 +214,21 @@ All tools support session persistence - build context once, ask follow-ups witho
 
 | Tool | Command | Best For |
 |------|---------|----------|
-| Gemini | `gemini -p "prompt" < file` | 1M context, research, free tier |
-| Codex | `codex exec "prompt" < file` | Code review, 1M context (gpt-5.4) |
-| Claude | `claude -p "prompt" < file` | Fresh context, security analysis |
+| Gemini | `gemini -p "prompt" < file` | 1M context, video/audio/PDF, research — for supported enterprise/API accounts |
+| Codex | `codex exec "prompt" < file` | Code review and agentic coding (GPT-5.6 family) |
+| Claude | `claude -p "prompt" < file` | Fresh context, security analysis, 1M-context review, long autonomous work |
 
 ## Model Selection
 
 | Tool | Quality | Fast | Reasoning |
 |------|---------|------|-----------|
-| Gemini | `-m pro` | `-m flash` | pro |
-| Codex | `-m gpt-5.5` (ChatGPT) / `-m gpt-5.4` (API) | `-m gpt-5.4-mini` | `-m o3` |
-| Claude | `--model opus` | `--model sonnet` | `--model opus --effort xhigh` |
+| Gemini | `-m gemini-3.1-pro-preview` | `-m gemini-3.5-flash` or `-m gemini-3.1-flash-lite` | `gemini-3.1-pro-preview` |
+| Codex | `-m gpt-5.6-sol` | `-m gpt-5.6-luna` | `-m gpt-5.6-sol` with `xhigh`/`max`/`ultra` reasoning effort in config |
+| Claude | `--model fable` or `--model opus` | `--model sonnet` or `--model haiku` | `--model opus --effort xhigh` |
 
-**Full model names:** Gemini: `gemini-3.1-pro-preview`, `gemini-3-flash-preview`, `gemini-3.1-flash-lite-preview`. Codex: `gpt-5.5` (ChatGPT auth, default when available), `gpt-5.4` (API-key default), `gpt-5.4-mini`, `gpt-5.3-codex`, `o3`, `o4-mini`. Claude: `opus` (4.7, default), `sonnet` (4.6), `haiku` (4.5).
+**Current model snapshot (July 2026):** Gemini: `auto` routing by default; current IDs are `gemini-3.1-pro-preview`, `gemini-3.5-flash`, `gemini-3.1-flash-lite` (access is account-dependent). Codex: the GPT-5.6 family launched July 9, 2026 — `gpt-5.6-sol` (flagship, the default for most accounts), `gpt-5.6-terra` (balanced), `gpt-5.6-luna` (fast/cheap); `gpt-5.5` and `gpt-5.4-mini` are legacy. Claude: `fable` (Fable 5), `opus` (Opus 4.8 on Anthropic API), `sonnet` (Sonnet 5), and `haiku` (Haiku 4.5). Prefer aliases unless reproducibility requires pinning a full ID.
 
-**Claude effort levels:** `low`, `medium`, `high`, `xhigh`, `max`. Opus 4.7 supports all five (default `xhigh`). Opus 4.6/Sonnet 4.6 default `high`; `xhigh` falls back to `high` on those. `max` is deepest reasoning, slower, prone to overthinking.
+**Claude effort levels:** `low`, `medium`, `high`, `xhigh`, `max`. Support and defaults vary by active model; use `claude --help` and `/model` for the current account.
 
 ## Common Patterns
 
@@ -249,14 +247,14 @@ wait
 Route to best model for task type (see routing table above).
 
 ```bash
-# Security audit → Claude opus (Opus 4.7)
+# Security audit → current Claude opus
 claude -p "Security audit:" --model opus --effort xhigh < api.py
 
 # Large file analysis → Gemini
 gemini -p "Analyze this log:" < large-log.txt
 
 # Code optimization → Codex
-codex exec -m gpt-5.4 "Optimize this code:" < perf.py
+codex exec -m gpt-5.6-sol "Optimize this code:" < perf.py
 ```
 
 ### Pattern 3: Fallback Chain
@@ -271,16 +269,16 @@ gemini -p "prompt" 2>/dev/null || \
 **Note:** Exit code alone doesn't catch all failures—some models return 0 with error text. For critical tasks, validate output content.
 
 ### Pattern 4: Large Context Handling
-All three tools support ~1M token context. Use any for large files.
+All three tool families have models with large context windows, but model and account access differ. Verify availability before routing near-limit inputs.
 
 ```bash
-# Gemini handles large context (free tier)
+# Gemini handles large context for supported enterprise/API accounts
 gemini -p "Review this large codebase:" < all-source.txt
 
-# Codex gpt-5.4 (1M context, code-specialized)
+# Codex recommended model
 codex exec "Review this large codebase:" < all-source.txt
 
-# Claude opus (1M context, Opus 4.7)
+# Claude opus (1M context where available)
 claude -p "Review:" --model opus < all-source.txt
 
 # Cascade: fast summary → deep analysis
@@ -290,13 +288,13 @@ claude -p "Analyze this summary:" --model opus <<< "$SUMMARY"
 
 ## Budget Awareness
 
-| Tool | Free Tier | Cost Notes |
+| Tool | Access | Cost Notes |
 |------|-----------|------------|
-| Gemini | Yes | Use first for cost savings |
-| Codex | Limited | o3 is expensive |
-| Claude | No | Per-token billing |
+| Gemini | Consumer access ended June 18, 2026 | Enterprise licenses and paid API-key access remain; `gemini-3.1-flash-lite` is very cheap ($0.25/$1.50 per 1M) |
+| Codex | Subscription/API dependent | Use `gpt-5.6-luna` ($1/$6 per 1M) or `-terra` ($2.50/$15) for lighter work; `-sol` is $5/$30 |
+| Claude | Subscription/API dependent | Haiku/Sonnet are typically cheaper than Opus/Fable |
 
-Strategy: Start with Gemini (free), escalate to paid models only when needed.
+Strategy: Choose based on account access, data policy, and task complexity. Do not assume Gemini CLI is free or available to consumer accounts.
 
 ## Detailed References
 

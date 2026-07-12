@@ -1,5 +1,9 @@
 # Gemini CLI Reference
 
+> **Consumer transition:** As of June 18, 2026, Gemini CLI no longer serves requests for free users or Google AI Pro/Ultra subscribers. Google directs those users to Antigravity CLI. Gemini CLI remains supported for Gemini Code Assist Standard/Enterprise and paid Gemini or Enterprise Agent Platform API keys.
+
+**Audited against:** Gemini CLI `0.45.2` and official Gemini CLI/API documentation on July 12, 2026.
+
 ## Installation
 
 See [README.md](../../../README.md#prerequisites) for installation instructions.
@@ -14,8 +18,8 @@ Version channels: `@latest`, `@preview`, `@nightly`
 
 ## Authentication
 
-1. **Google Login** (recommended): Run `gemini` and follow prompts. Free tier: ~60 req/min, ~1000 req/day (CLI-specific quota)
-2. **API Key**: Set `GEMINI_API_KEY` environment variable. Free tier varies by model (5-15 RPM, Flash models only for free). Pro models require paid access.
+1. **Enterprise Google Login**: Run `gemini` and follow prompts. Consumer/free and Google AI Pro/Ultra access ended June 18, 2026.
+2. **Paid API Key**: Set `GEMINI_API_KEY`. Gemini CLI remains accessible through paid Gemini and Enterprise Agent Platform API keys.
 3. **Vertex AI**: Set `GOOGLE_API_KEY` + `GOOGLE_GENAI_USE_VERTEXAI=true` for enterprise/scalable use
 
 ## Non-Interactive Usage
@@ -25,8 +29,8 @@ Version channels: `@latest`, `@preview`, `@nightly`
 gemini -p "Your prompt here"
 
 # With model selection
-gemini -p -m flash "prompt"
-gemini -p -m pro "prompt"
+gemini -p -m gemini-3.5-flash "prompt"
+gemini -p -m gemini-3.1-pro-preview "prompt"
 
 # JSON output for parsing
 gemini -p -o json "prompt"
@@ -56,9 +60,12 @@ gemini -p "Review this code:" < file.py
 | `--yolo` | `-y` | Auto-approve all actions (equivalent to `--approval-mode=yolo`) |
 | `--sandbox` | `-s` | Run in sandbox mode |
 | `--resume <session>` | `-r` | Resume session: `latest` or index number |
+| `--session-file <file>` | | Load a session from a JSON file |
+| `--session-id <uuid>` | | Start a session with an explicit UUID |
 | `--list-sessions` | | List available sessions |
 | `--delete-session <id>` | | Delete session by index number |
 | `--worktree [name]` | `-w` | Start in a new git worktree (name auto-generated if omitted; requires `experimental.worktrees` enabled) |
+| `--skip-trust` | | Trust the current workspace for this session |
 | `--debug` | `-d` | Debug mode (F12 opens debug console) |
 | `--policy <files>` | | Additional policy files or directories (comma-separated or repeated) |
 | `--admin-policy <files>` | | Additional admin policy files or directories |
@@ -82,6 +89,7 @@ gemini mcp <cmd>          # add / remove / list / enable / disable
 gemini extensions <cmd>   # install / uninstall / list / update / enable / disable / link / new / validate / config  (alias: extension)
 gemini skills <cmd>       # list [--all] / enable / disable / install / link / uninstall  (alias: skill)
 gemini hooks <cmd>        # migrate  (migrate hooks from Claude Code)
+gemini gemma <cmd>        # setup / start / stop / status / logs for local Gemma routing
 ```
 
 ## Slash Commands (Interactive)
@@ -90,26 +98,28 @@ gemini hooks <cmd>        # migrate  (migrate hooks from Claude Code)
 
 ## Available Models
 
+**Current lineup (July 2026), for accounts with valid access:**
+
+| Model ID | Status | Role | Context | Price (per 1M in/out) |
+|----------|--------|------|---------|----------------------|
+| `gemini-3.1-pro-preview` | Preview (current top) | Deepest reasoning, hardest analysis | 1M in / 64K out | $2–4 / $12–18 (tiered at 200K) |
+| `gemini-3.5-flash` | GA | Agentic coding loops, best multimodal understanding | 1M in / 64K out | $1.50 / $9 |
+| `gemini-3-flash-preview` | Preview (superseded by 3.5 Flash) | Cheaper multimodal workhorse | 1M in / 64K out | $0.50 / $3 |
+| `gemini-3.1-flash-lite` | GA | Cheapest current-gen; quick tasks | 1M in / 64K out | $0.25 / $1.50 |
+| `gemini-2.5-pro` / `-flash` / `-flash-lite` | Legacy | Auto-routing fallbacks; 2.5-flash-lite is cheapest overall ($0.10/$0.40) | 1M in | — |
+
+⚠️ `gemini-3-pro-preview` was **shut down March 9, 2026** — use `gemini-3.1-pro-preview` instead. Gemini 3 "Deep Think" is consumer-app-only (no CLI/API model ID); do not route to it.
+
+All Gemini 3.x models are multimodal: text, image, video, audio, and PDF input (text output only).
+
 **Model Selection Modes:**
-- **Auto (Gemini 3)** - Paid/Ultra subscribers. Routes between `gemini-2.5-flash` (simple prompts) and `gemini-3.1-pro-preview` (complex prompts).
-- **Auto (Gemini 2.5)** - Default for most users. Routes between `gemini-2.5-flash` (simple) and `gemini-2.5-pro` (complex).
-- **Manual** - Select specific model via `/model` or `-m` flag
+- **Auto (Gemini 3)** - Routes simple prompts to Flash-tier and complex prompts to Pro-tier models available to the account. Default (`-m` defaults to `auto`).
+- **Auto (Gemini 2.5)** - Routes between Gemini 2.5 Pro and Flash where still available.
+- **Manual** - Select a specific model via `/model` or `-m`.
 
-**Gemini 3.x (Current, all still in preview — GA not yet announced):**
-- `gemini-3.1-pro-preview` - Most capable, best reasoning (1M input, 64K output)
-- `gemini-3-flash-preview` - Fast, good balance (1M input, 64K output)
-- `gemini-3.1-flash-lite-preview` - Cheapest/fastest, 2.5x faster TTFT (1M input, 64K output). Released March 3, 2026.
+**Recommendation:** Use `auto` unless reproducibility requires a pinned model. Pin `gemini-3.1-pro-preview` for complex reasoning and `gemini-3.5-flash` or `gemini-3.1-flash-lite` for faster/cheaper work. Availability is account-dependent; inspect `/model` for the authoritative list for the current account.
 
-**Gemini 2.5 (Stable; deprecation June 17, 2026 on Gemini API, October 16, 2026 on Vertex AI):**
-- `gemini-2.5-pro` - Production stable, complex reasoning (1M input)
-- `gemini-2.5-flash` - Production stable, fast (1M input)
-- `gemini-2.5-flash-lite` - Ultra-efficient, cost-optimized
-
-**Shorthand aliases (verified working in CLI 0.37.1):** `-m pro` → `gemini-3.1-pro-preview`, `-m flash` → `gemini-3-flash-preview`, `-m flash-lite` → `gemini-3.1-flash-lite-preview`. These are documented behavior but may be partial-match shortcuts; prefer full model IDs for reliability.
-
-**Default:** `auto` — routing tier depends on subscription. **Critical:** If you do not have paid Gemini 3 access, `auto` falls back to Gemini 2.5 routing, not Gemini 3.
-
-**Context Windows:** All current models support 1M token input context and 64K output.
+**Quota behavior:** On daily quota exhaustion the CLI prompts to fall back to `gemini-2.5-pro`, retry with backoff, or stop — there is no silent automatic Flash fallback.
 
 **Note:** `/model` does not override sub-agent model selection.
 
@@ -157,8 +167,8 @@ Configure via `GEMINI_SANDBOX` env var: `true`/`false`/`docker`/`podman`/`sandbo
 
 ## Strengths
 
-- **1M token context window** - matches gpt-5.4 and Claude Opus 4.7 / Sonnet 4.6
-- **Free tier** - available via Google login (~60 req/min CLI quota). API key free tier is more limited (Flash models only, 5-15 RPM)
+- **Large context support** - useful for repository and document analysis
+- **Enterprise and paid API access** - consumer/free access moved to Antigravity CLI on June 18, 2026
 - **Good at research/analysis** - different training data than Claude
 - **Rich tool ecosystem** - built-in search, planning, skills
 
@@ -181,7 +191,8 @@ gemini -p --approval-mode=plan "What would you change in this code?" < file.py
 gemini -r latest
 
 # Use specific model
-gemini -p -m pro "Complex analysis:" < data.txt
+gemini -p -m gemini-3.1-pro-preview "Complex analysis:" < data.txt
+gemini -p -m gemini-3.1-flash-lite "Quick check:" < data.txt
 
 # Start in isolated git worktree (requires experimental.worktrees enabled)
 gemini -w my-feature-branch
@@ -198,17 +209,17 @@ gemini -p "Compare ./before.png and ./after.png — what changed?"
 ### Authentication Errors
 - **"Not authenticated"**: Run `gemini` interactively and login with Google
 - **"API key invalid"**: Check `GEMINI_API_KEY` environment variable
-- **"Quota exceeded"**: Wait for rate limit reset (60 req/min, 1000 req/day on free tier)
+- **"Quota exceeded"**: Check the quota attached to the enterprise license or paid API project
 
 ### Common Issues
 - **Command not found**: Run `npm install -g @google/gemini-cli` or `brew install gemini-cli`
-- **Model not available**: Some models require API key access vs free tier. Try default model first
+- **Model not available**: Model access depends on license, provider, and API project. Try `auto` or inspect `/model`
 - **Timeout on large prompts**: 1M context is large but still has processing limits
 
 ### Rate Limits
-- Google login (CLI): ~60 requests/minute, ~1000 requests/day
-- API key free tier: 5-15 RPM depending on model (Flash models only for free; Pro requires paid)
+- Enterprise Google login: quota depends on the organization's Gemini Code Assist license
+- Paid API key: quota depends on the Gemini API project and model
 - Vertex AI: Separate quota per project
 
 ### Fallback Strategy
-If Gemini is unavailable, try Claude with `--model sonnet` for similar speed, or Codex for code-specific tasks.
+For consumer accounts, migrate to Antigravity CLI. If Gemini is unavailable in an orchestration workflow, try Claude with `--model sonnet` for similar speed or Codex for code-specific tasks.

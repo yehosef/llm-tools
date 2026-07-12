@@ -90,7 +90,7 @@ done
 Fast model filters, quality model analyzes.
 
 ```bash
-# Step 1: Fast filter with Gemini (free) - stdin avoids argv limits
+# Step 1: Fast filter with Gemini where the account supports it
 ISSUES=$(gemini -p "List potential issues in this code, one per line:" < code.py)
 
 # Step 2: If issues found, deep analysis with Claude (use heredoc for safety)
@@ -234,15 +234,15 @@ claude -p "Synthesize these:" --model opus < /tmp/context.txt
 
 ## Budget Optimization
 
-### Free Tier First Strategy
+### Lower-Cost First Strategy
 
 ```bash
-# Always try Gemini first (free tier)
-RESULT=$(gemini -p "$PROMPT" 2>/dev/null)
+# Try a lower-cost model first
+RESULT=$(codex exec -m gpt-5.6-luna "$PROMPT" 2>/dev/null)
 
 # Only escalate if needed
 if [ $? -ne 0 ] || [ -z "$RESULT" ]; then
-  RESULT=$(codex exec "$PROMPT")  # Cheaper than gpt-5
+  RESULT=$(claude -p "$PROMPT" --model sonnet)
 fi
 
 echo "$RESULT"
@@ -255,21 +255,20 @@ echo "$RESULT"
 WORDS=$(wc -w <<< "$CONTENT")
 
 if [ "$WORDS" -lt 1000 ]; then
-  # Small content: use free Gemini
-  gemini -p "$PROMPT"
+  # Small content: use a fast model
+  codex exec -m gpt-5.6-luna "$PROMPT"
 elif [ "$WORDS" -lt 130000 ]; then
   # Medium (<~100K tokens): any model works
   codex exec "$PROMPT"
 else
-  # Large (>100K tokens): use 1M-context models
-  # Gemini (free) or Codex gpt-5.4 (922K input)
-  gemini -p "$PROMPT"
+  # Large (>100K tokens): Codex CLI caps at ~372K; above that use a 1M model
+  claude -p "$PROMPT" --model opus
 fi
 ```
 
 ### Context-Aware Model Selection
 
-All three tools support ~1M token context windows (Gemini, Codex gpt-5.4, Claude Opus 4.7 / Sonnet 4.6). Route large inputs accordingly:
+All three tool families have models with large context windows, but availability depends on model, account, plan, and provider. Check the active model's limit before routing near-limit inputs:
 
 ```bash
 #!/bin/bash
@@ -285,7 +284,7 @@ if [ "$EST_TOKENS" -gt 150000 ]; then
   # Large input: must use 1M-context model
   echo "Large input (~${EST_TOKENS} tokens), using 1M-context model..."
   gemini -p "$PROMPT" < "$INPUT_FILE" || \
-    codex exec -m gpt-5.4 "$PROMPT" < "$INPUT_FILE"
+    claude -p "$PROMPT" --model opus < "$INPUT_FILE"
 elif [ "$EST_TOKENS" -gt 50000 ]; then
   # Medium: Gemini or Claude (both support stdin)
   gemini -p "$PROMPT" < "$INPUT_FILE"
@@ -301,8 +300,8 @@ fi
 # Concatenate source files for full-repo review
 find src -name "*.py" -exec cat {} + > /tmp/all-src.txt
 gemini -p "Review this codebase for bugs and improvements:" < /tmp/all-src.txt
-# Or with Codex for code-specialized review
-codex exec -m gpt-5.4 "Review this codebase:" < /tmp/all-src.txt
+# Or with Codex for code-specialized review (fits within ~372K tokens)
+codex exec -m gpt-5.6-sol "Review this codebase:" < /tmp/all-src.txt
 ```
 
 ### Complexity-Based Routing (3-Tier)
@@ -311,15 +310,15 @@ Route tasks to appropriate model tier based on complexity, not just size.
 
 **Tier 1 - Fast/Cheap** (simple tasks):
 - Syntax checks, formatting, simple validation
-- Use: `gemini -p -m flash`, `claude --model haiku`, `codex exec`
+- Use: `gemini -p -m gemini-3.1-flash-lite`, `claude --model haiku`, `codex exec -m gpt-5.6-luna`
 
 **Tier 2 - Balanced** (medium complexity):
 - Code review, refactoring suggestions, documentation
-- Use: `gemini -p -m pro`, `claude --model sonnet`, `codex exec -m gpt-5.4`
+- Use: `gemini -p -m gemini-3.5-flash`, `claude --model sonnet`, `codex exec -m gpt-5.6-terra`
 
 **Tier 3 - Quality** (complex reasoning):
 - Architecture decisions, security audits, complex debugging
-- Use: `gemini -p -m pro`, `claude --model opus --effort xhigh` (or `max`), `codex exec -m o3`
+- Use: `gemini -p -m gemini-3.1-pro-preview`, `claude --model opus --effort xhigh` (or `max`), `codex exec -m gpt-5.6-sol`
 
 ```bash
 #!/bin/bash
@@ -331,7 +330,7 @@ PROMPT="$2"
 case "$TASK_TYPE" in
   "format"|"lint"|"validate"|"simple")
     # Tier 1: Fast/cheap
-    gemini -p -m flash "$PROMPT" || claude -p "$PROMPT" --model haiku
+    codex exec -m gpt-5.6-luna "$PROMPT" || claude -p "$PROMPT" --model haiku
     ;;
   "review"|"refactor"|"document"|"medium")
     # Tier 2: Balanced
@@ -339,7 +338,7 @@ case "$TASK_TYPE" in
     ;;
   "security"|"architecture"|"debug"|"complex")
     # Tier 3: Quality - use reasoning model
-    codex exec -m o3 "$PROMPT" || claude -p "$PROMPT" --model opus
+    codex exec -m gpt-5.6-sol "$PROMPT" || claude -p "$PROMPT" --model opus
     ;;
   *)
     # Default: balanced
@@ -487,7 +486,7 @@ gemini -i "Review this project for security issues"
 INITIAL=$(gemini -p "Summarize:" < data.txt)
 
 # Hand off to reasoning model for deep analysis
-DEEP=$(codex exec -m o3 "Given this summary, what are the implications?" <<< "$INITIAL")
+DEEP=$(codex exec -m gpt-5.6-sol "Given this summary, what are the implications?" <<< "$INITIAL")
 
 # Final synthesis with quality model (heredoc for safety)
 claude -p "Create final report from:" --model opus <<< "$DEEP"

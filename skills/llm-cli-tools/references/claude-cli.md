@@ -1,5 +1,7 @@
 # Claude CLI Reference
 
+**Audited against:** Claude Code `2.1.207` and official Claude Code documentation on July 12, 2026. Alias resolution verified live (`sonnet` → `claude-sonnet-5`).
+
 ## Installation
 
 See [README.md](../../../README.md#prerequisites) for installation instructions.
@@ -23,9 +25,10 @@ claude -p "Your prompt here"
 claude -p "prompt" --model opus
 claude -p "prompt" --model sonnet
 claude -p "prompt" --model haiku
+claude -p "prompt" --model fable
 
 # Full model names also work
-claude -p "prompt" --model claude-sonnet-4-6
+claude -p "prompt" --model claude-opus-4-8
 
 # JSON output
 claude -p "prompt" --output-format json
@@ -44,8 +47,8 @@ claude -p "prompt" --system-prompt "You are a security expert"
 
 # Effort level (low/medium/high/xhigh/max)
 claude -p "prompt" --effort high
-claude -p "prompt" --effort xhigh  # Opus 4.7 recommended default; falls back to high on Opus 4.6/Sonnet 4.6
-claude -p "prompt" --effort max    # Deepest reasoning (any supported model)
+claude -p "prompt" --effort xhigh
+claude -p "prompt" --effort max
 ```
 
 ## All Options
@@ -53,8 +56,8 @@ claude -p "prompt" --effort max    # Deepest reasoning (any supported model)
 | Flag | Description |
 |------|-------------|
 | `-p, --print` | Non-interactive mode (required for scripting) |
-| `--model <model>` | Model: `opus`, `sonnet`, `haiku`, `opusplan`, `best`, `default`, `opus[1m]`, `sonnet[1m]`, or full name |
-| `--effort <level>` | Effort level: `low`, `medium`, `high`, `xhigh`, `max`. `xhigh` and `max` supported on Opus 4.7; `xhigh` falls back to `high` on Opus 4.6/Sonnet 4.6. |
+| `--model <model>` | Model alias or full name. Current aliases include `fable`, `best`, `opus`, `sonnet`, `haiku`, `opusplan`, `default`, and `[1m]` variants |
+| `--effort <level>` | Effort level: `low`, `medium`, `high`, `xhigh`, `max`; support and defaults vary by model |
 | `--fallback-model <model>` | Fallback if primary overloaded (only with `--print`) |
 | `--output-format <format>` | `text`, `json`, `stream-json` |
 | `--input-format <format>` | Input: `text` (default), `stream-json` |
@@ -62,6 +65,8 @@ claude -p "prompt" --effort max    # Deepest reasoning (any supported model)
 | `--max-budget-usd <amount>` | Spending limit (only with `--print`) |
 | `--system-prompt <prompt>` | Custom system prompt |
 | `--append-system-prompt <prompt>` | Append to default system prompt |
+| `--system-prompt-file <file>` | Replace the default system prompt with file contents |
+| `--append-system-prompt-file <file>` | Append file contents to the default system prompt |
 | `--exclude-dynamic-system-prompt-sections` | Move per-machine context (cwd, env, memory paths, git status) from the system prompt into the first user message; improves cross-user cache reuse. Default-prompt only. |
 | `-c, --continue` | Continue most recent conversation |
 | `-r, --resume [value]` | Resume by session ID or interactive picker |
@@ -91,13 +96,19 @@ claude -p "prompt" --effort max    # Deepest reasoning (any supported model)
 | `--settings <file-or-json>` | Additional settings from file or JSON string |
 | `--setting-sources <sources>` | Setting sources to load: `user`, `project`, `local` |
 | `--plugin-dir <paths>` | Load plugins from directories (repeatable) |
+| `--plugin-url <url>` | Fetch a plugin ZIP for this session (repeatable) |
 | `--disable-slash-commands` | Disable all skills |
+| `--safe-mode` | Disable customizations for troubleshooting while retaining auth, model selection, built-in tools, and permissions |
+| `--prompt-suggestions [bool]` | Emit a predicted next prompt in print/SDK mode |
 | `-w, --worktree [name]` | Create git worktree for this session |
 | `--tmux` | Create tmux session for worktree (requires `--worktree`) |
 | `--include-hook-events` | Include all hook lifecycle events (requires `--output-format=stream-json`) |
 | `--include-partial-messages` | Include partial message chunks as they arrive (requires `--print` + `--output-format=stream-json`) |
 | `--replay-user-messages` | Re-emit user messages from stdin on stdout (requires `--input-format=stream-json` + `--output-format=stream-json`) |
 | `--remote-control-session-name-prefix <prefix>` | Prefix for auto-generated Remote Control session names |
+| `--bg, --background` | Start the session as a background agent |
+| `--ax-screen-reader` | Screen-reader friendly output (flat text, no decorative borders) |
+| `--remote-control [name]` | Start an interactive session with Remote Control |
 | `--verbose` | Override verbose mode from config |
 | `-d, --debug [filter]` | Debug mode with optional category filter |
 | `--debug-file <path>` | Write debug logs to file |
@@ -116,29 +127,33 @@ claude mcp              # MCP management
 claude plugin           # Plugin management
 claude setup-token      # Set up long-lived auth token
 claude update           # Check for updates
+claude project          # Manage project state, including purge
+claude ultrareview      # Cloud-hosted multi-agent code review
 ```
 
 ## Available Models
 
-**Current flagship (Claude 4.7):**
-- `opus` → **Claude Opus 4.7** (`claude-opus-4-7`) — most capable, step-change improvement in agentic coding over Opus 4.6. Requires Claude Code v2.1.111+. 1M context, 128K output.
-
-**Claude 4.6:**
-- `sonnet` → **Claude Sonnet 4.6** (`claude-sonnet-4-6`) — best balance of speed/quality. 1M context, 64K output. Still the workhorse default for most automated tasks.
-
-**Claude 4.5:**
-- `haiku` → **Claude Haiku 4.5** (`claude-haiku-4-5-20251001`) — fastest for simple tasks. 200K context, 64K output.
+**Current aliases on the Anthropic API:**
+- `fable` → **Claude Fable 5** (`claude-fable-5`) — longest-running and hardest autonomous tasks. Requires Claude Code 2.1.170+ and is not the default.
+- `best` → Fable 5 where the organization has access; otherwise latest Opus.
+- `opus` → **Claude Opus 4.8** (`claude-opus-4-8`) — complex reasoning. Requires Claude Code 2.1.154+.
+- `sonnet` → **Claude Sonnet 5** (`claude-sonnet-5`) — daily coding; near-Opus quality on coding/agentic work at Sonnet cost. Adaptive thinking on by default; supports `xhigh` effort.
+- `haiku` → **Claude Haiku 4.5** — fast and efficient for simple tasks.
 
 **Additional aliases:**
-- `opusplan` — uses Opus in plan mode, switches to Sonnet for execution. Plan-mode Opus runs at standard 200K (the automatic 1M upgrade does not apply to `opusplan`).
-- `best` — equivalent to `opus`
-- `default` — clears model override (resolves based on your plan: Opus 4.7 for Max/Team Premium/Enterprise pay-as-you-go/API; Sonnet 4.6 for Pro/Team Standard; Sonnet 4.5 for Bedrock/Vertex/Foundry). The Enterprise/API tier shifted from Sonnet 4.6 → Opus 4.7 on April 23, 2026.
+- `opusplan` — uses Opus during plan mode and Sonnet for execution.
+- `default` — clears the override and resolves by account/provider.
 - `opus[1m]`, `sonnet[1m]` — explicit 1M-context variants (for plans where 1M is opt-in). `[1m]` can also be appended to full model names (e.g. `claude-opus-4-7[1m]`).
 
-**Full Model IDs (authoritative):**
+**Key full model IDs:**
+- `claude-fable-5`
+- `claude-opus-4-8`
 - `claude-opus-4-7`
-- `claude-sonnet-4-6`
+- `claude-sonnet-5`
+- `claude-sonnet-4-6` (previous-generation Sonnet, still active)
 - `claude-haiku-4-5-20251001` (dated snapshot; `claude-haiku-4-5` also works as a floating alias)
+
+Aliases vary by provider. On Claude Platform on AWS, `opus` currently resolves to Opus 4.7; Bedrock, Vertex, and Foundry may resolve aliases to older versions unless full model IDs or `ANTHROPIC_DEFAULT_*_MODEL` overrides are configured.
 
 **1M Context availability:**
 - Max, Team, and Enterprise: Opus 1M included with subscription; Sonnet 1M requires extra usage
@@ -146,16 +161,11 @@ claude update           # Check for updates
 - API / pay-as-you-go: full access, standard token pricing (no premium beyond 200K)
 - To disable 1M context entirely: `CLAUDE_CODE_DISABLE_1M_CONTEXT=1`
 
-**Tokenizer note:** Opus 4.7 uses a new tokenizer (~555K words / ~2.5M unicode chars ≈ 1M tokens, vs ~750K words / ~3.4M unicode chars for Sonnet 4.6/Opus 4.6). "1M context" means different amounts of text in each model. The same input may map to 1.0–1.35× more tokens on Opus 4.7 depending on content type.
+**Effort:** `low`, `medium`, `high`, `xhigh`, and `max` are accepted by current Claude Code. Capability and defaults vary by model and provider, so avoid hard-coding fallback behavior in automation.
 
-**Effort levels by model:**
-- Opus 4.7: `low`, `medium`, `high`, `xhigh`, `max` — default is `xhigh`
-- Opus 4.6 and Sonnet 4.6: `low`, `medium`, `high`, `max` — default is `high`. `xhigh` silently falls back to `high`.
-- If you set a level the active model does not support, Claude Code falls back to the highest supported level at or below what you set.
-- `max` applies to the current session only (except when set via `CLAUDE_CODE_EFFORT_LEVEL`).
-- `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING=1` reverts Opus 4.6/Sonnet 4.6 to fixed thinking budgets — does not apply to Opus 4.7 (always uses adaptive reasoning).
+**Note:** Use `fable` for long autonomous tasks, `opus` for complex reasoning and security review, `sonnet` for balanced daily work (Sonnet 5 handles most coding at near-Opus quality), and `haiku` for speed.
 
-**Note:** For security reviews, use `opus`. For speed, use `sonnet`. Use `--effort xhigh` with `opus` for the recommended agentic default on Opus 4.7; `--effort max` for deepest analysis (slower, prone to overthinking — test before adopting broadly).
+**Sonnet 5 specifics:** 1M context window, 128K max output, new tokenizer (~30% more tokens for the same text than Sonnet 4.6 — re-estimate token budgets), full `low`→`max` effort range including `xhigh`.
 
 ## Permission Modes
 
@@ -222,13 +232,13 @@ claude -p "Review for security:" --system-prompt "You are a security auditor" < 
 # High effort reasoning
 claude -p "Find subtle bugs in:" --model opus --effort high < complex.py
 
-# xhigh effort (Opus 4.7 recommended default for agentic tasks)
+# xhigh effort
 claude -p "Find subtle bugs in:" --model opus --effort xhigh < complex.py
 
 # Max effort reasoning (deepest analysis, slower, can overthink)
 claude -p "Find subtle bugs in:" --model opus --effort max < complex.py
 
-# 1M context for large files (all plans)
+# 1M context for large files where the account supports it
 claude -p "Review entire codebase:" --model opus < all-source.txt
 
 # Worktree for isolated work
@@ -269,4 +279,4 @@ claude -p "Compare ./before.png and ./after.png — what changed?"
 - Use `--max-budget-usd` to control spending per request
 
 ### Fallback Strategy
-If Claude is unavailable, try Gemini with default model for speed, or Codex with `-m gpt-5.4` for quality.
+If Claude is unavailable, try Gemini with default model for speed, or Codex with `-m gpt-5.6-sol` for quality.

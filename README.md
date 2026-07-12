@@ -24,19 +24,22 @@ Claude will orchestrate the appropriate tools and synthesize the results.
 
 | Task Type | Primary Model | Why |
 |-----------|---------------|-----|
-| Large context (>200k) | Gemini, Codex (gpt-5.5/gpt-5.4), or Claude opus | All have ~1M token window |
-| Code review | Codex (gpt-5.5 ChatGPT auth, gpt-5.4 API) | Code-specialized, 1M context |
-| Security audit | Claude opus (`--effort xhigh`) | Thorough analysis (Opus 4.7) |
-| Quick validation | Gemini | Free tier |
-| Reasoning/logic | Codex o3 | Reasoning model |
+| Large context (>300k) | Claude opus/sonnet or supported Gemini accounts | 1M context on eligible plans (Codex CLI currently caps at 372K) |
+| Code review | Codex (`gpt-5.6-sol`) | Current frontier Codex coding model |
+| Security audit | Claude opus (`--effort xhigh`) | Thorough analysis |
+| Quick validation | Codex `gpt-5.6-luna` or Claude haiku | Fast, lower-cost options |
+| Reasoning/logic | Claude opus or Codex `gpt-5.6-sol` | Strong general reasoning |
+| Long autonomous work | Claude fable | Built for long-horizon agentic runs |
 
 ## Supported Tools
 
 | Tool | Provider | Best For |
 |------|----------|----------|
-| `gemini` | Google | Large context (1M tokens), research, free tier |
-| `codex` | OpenAI | Code review, GPT-5.5 (ChatGPT auth) / GPT-5.4 (API) flagship, o3 for reasoning |
-| `claude` | Anthropic | Security analysis, fresh context, Opus 4.7 (1M context) |
+| `gemini` | Google | 1M context, video/audio/PDF multimodal, and research for enterprise/paid API-key users (Gemini 3.1 Pro / 3.5 Flash) |
+| `codex` | OpenAI | Code review and agentic coding with the GPT-5.6 family (Sol/Terra/Luna) |
+| `claude` | Anthropic | Security analysis, long-running work with Fable 5, Opus 4.8 reasoning, and Sonnet 5 daily coding |
+
+> **Gemini consumer transition:** Gemini CLI stopped serving free, Google AI Pro, and Google AI Ultra accounts on June 18, 2026. Google directs those users to Antigravity CLI. Gemini CLI remains supported for Gemini Code Assist Standard/Enterprise and paid Gemini or Enterprise Agent Platform API keys.
 
 ## Installation
 
