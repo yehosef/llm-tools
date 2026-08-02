@@ -1,6 +1,6 @@
 # Claude CLI Reference
 
-**Audited against:** Claude Code `2.1.207` and official Claude Code documentation on July 12, 2026. Alias resolution verified live (`sonnet` → `claude-sonnet-5`).
+**Audited against:** Claude Code `2.1.220` and official Claude Code documentation on August 2, 2026. Alias resolution verified live (`opus` → `claude-opus-5`, `sonnet` → `claude-sonnet-5`).
 
 ## Installation
 
@@ -28,7 +28,7 @@ claude -p "prompt" --model haiku
 claude -p "prompt" --model fable
 
 # Full model names also work
-claude -p "prompt" --model claude-opus-4-8
+claude -p "prompt" --model claude-opus-5
 
 # JSON output
 claude -p "prompt" --output-format json
@@ -58,15 +58,15 @@ claude -p "prompt" --effort max
 | `-p, --print` | Non-interactive mode (required for scripting) |
 | `--model <model>` | Model alias or full name. Current aliases include `fable`, `best`, `opus`, `sonnet`, `haiku`, `opusplan`, `default`, and `[1m]` variants |
 | `--effort <level>` | Effort level: `low`, `medium`, `high`, `xhigh`, `max`; support and defaults vary by model |
-| `--fallback-model <model>` | Fallback if primary overloaded (only with `--print`) |
+| `--fallback-model <models>` | Fallback if primary overloaded; accepts a comma-separated list tried in order, re-tries primary each turn (only with `--print`) |
 | `--output-format <format>` | `text`, `json`, `stream-json` |
 | `--input-format <format>` | Input: `text` (default), `stream-json` |
 | `--json-schema <schema>` | JSON schema for structured output |
 | `--max-budget-usd <amount>` | Spending limit (only with `--print`) |
 | `--system-prompt <prompt>` | Custom system prompt |
 | `--append-system-prompt <prompt>` | Append to default system prompt |
-| `--system-prompt-file <file>` | Replace the default system prompt with file contents |
-| `--append-system-prompt-file <file>` | Append file contents to the default system prompt |
+| `--system-prompt-file <file>` | Replace the default system prompt with file contents (still accepted, but hidden from `--help` as of 2.1.220) |
+| `--append-system-prompt-file <file>` | Append file contents to the default system prompt (still accepted, but hidden from `--help` as of 2.1.220) |
 | `--exclude-dynamic-system-prompt-sections` | Move per-machine context (cwd, env, memory paths, git status) from the system prompt into the first user message; improves cross-user cache reuse. Default-prompt only. |
 | `-c, --continue` | Continue most recent conversation |
 | `-r, --resume [value]` | Resume by session ID or interactive picker |
@@ -75,7 +75,7 @@ claude -p "prompt" --effort max
 | `--session-id <uuid>` | Use specific session ID |
 | `-n, --name <name>` | Display name for the session (shown in prompt box, /resume picker, terminal title) |
 | `--no-session-persistence` | Don't save session to disk (only with `--print`) |
-| `--permission-mode <mode>` | `default`, `plan`, `acceptEdits`, `bypassPermissions`, `dontAsk`, `auto` |
+| `--permission-mode <mode>` | `manual` (was `default`), `plan`, `acceptEdits`, `bypassPermissions`, `dontAsk`, `auto` |
 | `--dangerously-skip-permissions` | Bypass all permission checks (⚠️ dangerous) |
 | `--allow-dangerously-skip-permissions` | Enable `--dangerously-skip-permissions` as an available option without auto-enabling it |
 | `--add-dir <dirs>` | Additional directories for tool access |
@@ -90,7 +90,7 @@ claude -p "prompt" --effort max
 | `--betas <betas>` | Beta headers for API requests (API key users only) |
 | `--brief` | Enable `SendUserMessage` tool for agent-to-user communication |
 | `--bare` | Minimal mode: skip hooks, LSP, plugin sync, attribution, auto-memory, background prefetches, keychain reads, CLAUDE.md auto-discovery. Sets `CLAUDE_CODE_SIMPLE=1`. Auth is strictly `ANTHROPIC_API_KEY` or `apiKeyHelper` via `--settings`. Skills still resolve via `/skill-name`. |
-| `--mcp-debug` | **[DEPRECATED]** Use `--debug` instead. |
+| `--forward-subagent-text` | Forward subagent text/thinking as messages with `parent_tool_use_id` (only with `--print` + `--output-format=stream-json`) |
 | `--chrome` / `--no-chrome` | Enable/disable Chrome integration |
 | `--ide` | Auto-connect to IDE on startup if exactly one valid IDE is available |
 | `--settings <file-or-json>` | Additional settings from file or JSON string |
@@ -128,6 +128,7 @@ claude plugin           # Plugin management
 claude setup-token      # Set up long-lived auth token
 claude update           # Check for updates
 claude project          # Manage project state, including purge
+claude gateway          # Run the enterprise auth/telemetry gateway
 claude ultrareview      # Cloud-hosted multi-agent code review
 ```
 
@@ -136,7 +137,7 @@ claude ultrareview      # Cloud-hosted multi-agent code review
 **Current aliases on the Anthropic API:**
 - `fable` → **Claude Fable 5** (`claude-fable-5`) — longest-running and hardest autonomous tasks. Requires Claude Code 2.1.170+ and is not the default.
 - `best` → Fable 5 where the organization has access; otherwise latest Opus.
-- `opus` → **Claude Opus 4.8** (`claude-opus-4-8`) — complex reasoning. Requires Claude Code 2.1.154+.
+- `opus` → **Claude Opus 5** (`claude-opus-5`, launched late July 2026) — complex reasoning flagship. 1M context; supports fast mode (`/fast` toggle in Claude Code, ~$10/$50 per 1M tokens). Verified live Aug 2, 2026. Opus 4.8 (`claude-opus-4-8`) remains active but is no longer what `opus` resolves to.
 - `sonnet` → **Claude Sonnet 5** (`claude-sonnet-5`) — daily coding; near-Opus quality on coding/agentic work at Sonnet cost. Adaptive thinking on by default; supports `xhigh` effort.
 - `haiku` → **Claude Haiku 4.5** — fast and efficient for simple tasks.
 
@@ -147,13 +148,16 @@ claude ultrareview      # Cloud-hosted multi-agent code review
 
 **Key full model IDs:**
 - `claude-fable-5`
+- `claude-opus-5`
 - `claude-opus-4-8`
 - `claude-opus-4-7`
 - `claude-sonnet-5`
 - `claude-sonnet-4-6` (previous-generation Sonnet, still active)
 - `claude-haiku-4-5-20251001` (dated snapshot; `claude-haiku-4-5` also works as a floating alias)
 
-Aliases vary by provider. On Claude Platform on AWS, `opus` currently resolves to Opus 4.7; Bedrock, Vertex, and Foundry may resolve aliases to older versions unless full model IDs or `ANTHROPIC_DEFAULT_*_MODEL` overrides are configured.
+Aliases vary by provider. Bedrock, Vertex, and Foundry may resolve aliases to older versions unless full model IDs or `ANTHROPIC_DEFAULT_*_MODEL` overrides (e.g. `ANTHROPIC_DEFAULT_OPUS_MODEL=claude-opus-5`) are configured.
+
+**Fast mode:** `/fast` in Claude Code toggles faster Opus output (same model, higher throughput; available on Opus 5/4.8/4.7). Priced higher per token — check current pricing before scripted use.
 
 **1M Context availability:**
 - Max, Team, and Enterprise: Opus 1M included with subscription; Sonnet 1M requires extra usage
@@ -163,13 +167,13 @@ Aliases vary by provider. On Claude Platform on AWS, `opus` currently resolves t
 
 **Effort:** `low`, `medium`, `high`, `xhigh`, and `max` are accepted by current Claude Code. Capability and defaults vary by model and provider, so avoid hard-coding fallback behavior in automation.
 
-**Note:** Use `fable` for long autonomous tasks, `opus` for complex reasoning and security review, `sonnet` for balanced daily work (Sonnet 5 handles most coding at near-Opus quality), and `haiku` for speed.
+**Note:** Use `fable` for long autonomous tasks, `opus` (Opus 5) for complex reasoning and security review, `sonnet` for balanced daily work (Sonnet 5 handles most coding at near-Opus quality), and `haiku` for speed. Opus 5 and Sonnet 5 support the full `low`→`max` effort range.
 
 **Sonnet 5 specifics:** 1M context window, 128K max output, new tokenizer (~30% more tokens for the same text than Sonnet 4.6 — re-estimate token budgets), full `low`→`max` effort range including `xhigh`.
 
 ## Permission Modes
 
-- `default` - Normal permission prompts (**recommended**)
+- `manual` - Normal permission prompts (**recommended**). Renamed from `default` as of ~2.1.220; `default` is still accepted as a hidden legacy value but no longer listed in `--help`
 - `plan` - Planning mode only (read-only, no edits)
 - `acceptEdits` - Auto-accept file edits + common filesystem commands (use in trusted repos only)
 - `auto` - Classifier-backed auto-approval; requires: Max/Team/Enterprise/API plan (not Pro), Sonnet 4.6+ or Opus 4.6+, Anthropic API only (not Bedrock/Vertex/Foundry). Team/Enterprise also requires admin to enable it.
@@ -254,6 +258,24 @@ claude -p "Compare ./before.png and ./after.png — what changed?"
 
 # --file is for API-uploaded file resources (file_id:path), not local file attach.
 ```
+
+## Multimodal Capabilities
+
+| Modality | Input | Output (generation) |
+|----------|-------|---------------------|
+| Image (PNG/JPG/GIF/WebP) | ✅ Path in prompt → Read tool; paste/drag-drop in interactive mode | ❌ Not native |
+| PDF | ✅ Read tool (`pages` param for long docs) | ❌ |
+| Audio | ❌ Claude models don't accept audio | ❌ |
+| Video | ❌ | ❌ |
+
+**Image input mechanisms:**
+- **Headless (`-p`):** reference the file path in the prompt — the Read tool loads it. Images are auto-resized/re-encoded before upload (since ~2.1.196).
+- **Interactive:** paste from clipboard or drag-drop into the prompt.
+- **Programmatic stdin:** `--input-format stream-json` accepts base64 image content blocks — the only way to pipe image bytes in without a file on disk.
+
+**Image generation:** not supported natively — no built-in image-gen tool. Options: have Claude write **SVG** directly (works well for diagrams/icons), or wire up an image-generation **MCP server** (e.g. one wrapping Gemini's image API or OpenAI's gpt-image) via `--mcp-config`. For raster generation in a multi-tool setup, route to Codex (built-in `image_gen`) or Gemini (`nanobanana` extension) instead.
+
+**Audio/video:** no input or output in any current Claude model (Fable 5, Opus 5, Sonnet 5, Haiku 4.5). Route audio/video tasks to Gemini.
 
 ## Use Cases for Fresh Claude Context
 

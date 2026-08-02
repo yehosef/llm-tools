@@ -24,20 +24,22 @@ Claude will orchestrate the appropriate tools and synthesize the results.
 
 | Task Type | Primary Model | Why |
 |-----------|---------------|-----|
-| Large context (>300k) | Claude opus/sonnet or supported Gemini accounts | 1M context on eligible plans (Codex CLI currently caps at 372K) |
+| Large context (>250k) | Claude opus/sonnet or supported Gemini accounts | 1M context on eligible plans (Codex CLI now caps at 272K) |
 | Code review | Codex (`gpt-5.6-sol`) | Current frontier Codex coding model |
 | Security audit | Claude opus (`--effort xhigh`) | Thorough analysis |
 | Quick validation | Codex `gpt-5.6-luna` or Claude haiku | Fast, lower-cost options |
 | Reasoning/logic | Claude opus or Codex `gpt-5.6-sol` | Strong general reasoning |
 | Long autonomous work | Claude fable | Built for long-horizon agentic runs |
+| Image generation | Codex (built-in `image_gen`) or Gemini (`nanobanana` extension) | Claude has no native image generation |
+| Audio/video input | Gemini (`@file.mp3`, `@file.mp4`) | Only tool with video input; Codex takes audio too (v0.145+) |
 
 ## Supported Tools
 
 | Tool | Provider | Best For |
 |------|----------|----------|
-| `gemini` | Google | 1M context, video/audio/PDF multimodal, and research for enterprise/paid API-key users (Gemini 3.1 Pro / 3.5 Flash) |
-| `codex` | OpenAI | Code review and agentic coding with the GPT-5.6 family (Sol/Terra/Luna) |
-| `claude` | Anthropic | Security analysis, long-running work with Fable 5, Opus 4.8 reasoning, and Sonnet 5 daily coding |
+| `gemini` | Google | 1M context, video/audio/PDF input, image generation (nanobanana), research — for enterprise/paid API-key users (Gemini 3.1 Pro / 3.6 Flash) |
+| `codex` | OpenAI | Code review and agentic coding with the GPT-5.6 family (Sol/Terra/Luna); built-in image generation and audio input |
+| `claude` | Anthropic | Security analysis, long-running work with Fable 5, Opus 5 reasoning, and Sonnet 5 daily coding |
 
 > **Gemini consumer transition:** Gemini CLI stopped serving free, Google AI Pro, and Google AI Ultra accounts on June 18, 2026. Google directs those users to Antigravity CLI. Gemini CLI remains supported for Gemini Code Assist Standard/Enterprise and paid Gemini or Enterprise Agent Platform API keys.
 

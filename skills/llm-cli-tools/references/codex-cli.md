@@ -6,7 +6,7 @@ See [README.md](../../../README.md#prerequisites) for installation instructions.
 
 Quick: `npm install -g @openai/codex` or `brew install codex`
 
-**Audited against:** Codex CLI `0.144.1` (live model catalog via `codex debug models`) and the official Codex manual on July 12, 2026.
+**Audited against:** Codex CLI `0.146.0` (live model catalog via `codex debug models`) and the official Codex docs on August 2, 2026. Official docs now live at `learn.chatgpt.com/docs` (developers.openai.com redirects there).
 
 ## Authentication
 
@@ -157,7 +157,7 @@ codex remote-control stop
 ## Approval Policies
 
 - `untrusted` - Only trusted commands run without approval (**recommended**)
-- `on-failure` - ⚠️ DEPRECATED. Run everything; escalate only on failure. Prefer `on-request` (interactive) or `never` (non-interactive).
+- `on-failure` - ⚠️ DEPRECATED (removed from `--help` as of 0.146.0). Prefer `on-request` (interactive) or `never` (non-interactive).
 - `on-request` - Model decides when to ask
 - `never` - ⚠️ Never ask (dangerous)
 
@@ -167,22 +167,48 @@ codex remote-control stop
 
 | Model | Role | Reasoning efforts | Context (CLI catalog) | API price (per 1M in/out) |
 |-------|------|-------------------|----------------------|---------------------------|
-| `gpt-5.6-sol` | Flagship — hardest coding, deep debugging, research, long agentic runs | low/medium/high/xhigh/max/**ultra** | 372K | $5 / $30 |
-| `gpt-5.6-terra` | Everyday workhorse — balanced cost/capability (≈ old gpt-5.5 quality, cheaper) | low/medium/high/xhigh/max/**ultra** | 372K | $2.50 / $15 |
-| `gpt-5.6-luna` | Fast and cheap — quick edits, subagents, high-volume | low/medium/high/xhigh/max | 372K | $1 / $6 |
+| `gpt-5.6-sol` | Flagship — hardest coding, deep debugging, research, long agentic runs | low/medium/high/xhigh/max/**ultra** | 272K | $5 / $30 |
+| `gpt-5.6-terra` | Everyday workhorse — balanced cost/capability (≈ old gpt-5.5 quality, cheaper) | low/medium/high/xhigh/max/**ultra** | 272K | $2.50 / $15 |
+| `gpt-5.6-luna` | Fast and cheap — quick edits, subagents, high-volume | low/medium/high/xhigh/max | 272K | $1 / $6 |
 
-- Default reasoning effort is `medium` for all three. `ultra` (Sol/Terra only) is maximum reasoning **with automatic task delegation** to subagents.
-- **Context caveat:** the API spec for GPT-5.6 advertises 1.05M input / 128K output, but the Codex CLI catalog currently caps sessions at 372K tokens (see openai/codex#31860). Treat ~350K effective as the practical CLI limit until that changes.
+- Default reasoning effort: `low` for Sol, `medium` for Terra/Luna (per the live catalog as of Aug 2, 2026 — Sol's default dropped from `medium`). `ultra` (Sol/Terra only) is maximum reasoning **with automatic task delegation** to subagents.
+- **Context caveat — got worse, not better:** the API spec for GPT-5.6 advertises 1.05M input / 128K output, but the Codex CLI cap was cut from 372K to **272K** raw (~258K effective) on July 13, 2026, formalized in v0.144.6. The 272K boundary tracks a billing tier (above it, requests price at 2× input / 1.5× output), not a technical limit. Restoration requests (openai/codex#31860, #32806, #34619) remain open. Treat ~250K effective as the practical CLI limit.
 
 **Legacy options (still in the catalog):**
 - `gpt-5.5` - Previous flagship (272K context in CLI). Fine as a fallback.
-- `gpt-5.4` - Older flagship; the one model with a 1M max window in the CLI catalog.
-- `gpt-5.4-mini` - Small/cheap; historically used for subagents (prefer `gpt-5.6-luna` now).
-- `gpt-5.3-codex-spark` - Near-instant real-time coding. Research preview for ChatGPT Pro.
+- `gpt-5.4` - Older flagship; the one model with a 1M max window in the CLI catalog. **Retires from Codex Aug 31, 2026** (ChatGPT auth) — migrate to `gpt-5.6-terra`.
+- `gpt-5.4-mini` - Small/cheap. **Retires Aug 31, 2026** — migrate to `gpt-5.6-luna`.
+- `gpt-5.3-codex-spark` - Near-instant real-time coding, ChatGPT Pro research preview. No longer appears in the standard-account catalog (access-dependent).
 
-`gpt-5.2` and `gpt-5.3-codex` are deprecated for ChatGPT sign-in. Avoid them in new examples.
+`gpt-5.2` and `gpt-5.3-codex` are deprecated for ChatGPT sign-in. Avoid them in new examples. A hidden `codex-auto-review` model backs the review subcommands.
 
-**Note:** Without `-m`, Codex selects a recommended model for the account (currently resolves to `gpt-5.6-sol` at `medium` for standard accounts). Use `codex debug models` to inspect the effective catalog and `codex debug models --bundled` to inspect the catalog shipped with the binary. Set reasoning effort via `/model` (interactive) or `model_reasoning_effort` in `config.toml`.
+**Note:** Without `-m`, Codex selects a recommended model for the account (currently resolves to `gpt-5.6-sol` at `low` for standard accounts). Use `codex debug models` to inspect the effective catalog and `codex debug models --bundled` to inspect the catalog shipped with the binary. Set reasoning effort via `/model` (interactive) or `model_reasoning_effort` in `config.toml`.
+
+## Multimodal Capabilities
+
+| Modality | Input | Output (generation) |
+|----------|-------|---------------------|
+| Image (PNG/JPEG/GIF/WebP) | ✅ `-i/--image` flag (repeatable); paste in TUI | ✅ Built-in `image_gen` tool (gpt-image-2) |
+| Audio | ✅ Local audio file inputs (since v0.145.0); realtime voice mode in TUI | ❌ No TTS output tool |
+| Video | ❌ | ❌ |
+| PDF | ❌ No native PDF attach (convert to images or paste text) | ❌ |
+
+**Image input:** all three GPT-5.6 models (Sol/Terra/Luna) accept images. Attach explicitly — Codex won't browse for images on its own. Keep files under ~5MB.
+
+```bash
+codex exec -i screenshot.png "What's wrong in this UI?"
+codex exec -i before.png -i after.png "What changed between these?"
+```
+
+**Image generation:** built into the CLI as the `image_gen` tool (bundled `imagegen` skill), backed by **gpt-image-2** — no separate API key needed. Invoke via natural language ("generate an image of..."), `$imagegen`, or `/skills`. Output lands in `~/.codex/generated_images/`.
+
+```bash
+codex exec "Generate a 1024x1024 hero image of a lighthouse at dawn, save it here" --sandbox workspace-write
+```
+
+**Audio:** v0.145.0 (July 21, 2026) added audio file inputs and realtime V3 streaming; the TUI also supports push-to-talk dictation and full two-way realtime voice (WebRTC, config via `[realtime]` in config.toml).
+
+⚠️ **`-i` flag collision:** in Codex `-i` = `--image`; in Gemini `-i` = `--prompt-interactive`. Don't copy commands between tools blindly.
 
 ## Config File (`~/.codex/config.toml`)
 

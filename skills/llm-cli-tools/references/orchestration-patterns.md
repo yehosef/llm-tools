@@ -261,7 +261,7 @@ elif [ "$WORDS" -lt 130000 ]; then
   # Medium (<~100K tokens): any model works
   codex exec "$PROMPT"
 else
-  # Large (>100K tokens): Codex CLI caps at ~372K; above that use a 1M model
+  # Large (>100K tokens): Codex CLI caps at 272K; above that use a 1M model
   claude -p "$PROMPT" --model opus
 fi
 ```
@@ -300,7 +300,7 @@ fi
 # Concatenate source files for full-repo review
 find src -name "*.py" -exec cat {} + > /tmp/all-src.txt
 gemini -p "Review this codebase for bugs and improvements:" < /tmp/all-src.txt
-# Or with Codex for code-specialized review (fits within ~372K tokens)
+# Or with Codex for code-specialized review (fits within ~250K tokens)
 codex exec -m gpt-5.6-sol "Review this codebase:" < /tmp/all-src.txt
 ```
 
@@ -310,11 +310,11 @@ Route tasks to appropriate model tier based on complexity, not just size.
 
 **Tier 1 - Fast/Cheap** (simple tasks):
 - Syntax checks, formatting, simple validation
-- Use: `gemini -p -m gemini-3.1-flash-lite`, `claude --model haiku`, `codex exec -m gpt-5.6-luna`
+- Use: `gemini -p -m gemini-3.5-flash-lite`, `claude --model haiku`, `codex exec -m gpt-5.6-luna`
 
 **Tier 2 - Balanced** (medium complexity):
 - Code review, refactoring suggestions, documentation
-- Use: `gemini -p -m gemini-3.5-flash`, `claude --model sonnet`, `codex exec -m gpt-5.6-terra`
+- Use: `gemini -p -m gemini-3.6-flash`, `claude --model sonnet`, `codex exec -m gpt-5.6-terra`
 
 **Tier 3 - Quality** (complex reasoning):
 - Architecture decisions, security audits, complex debugging
@@ -507,6 +507,37 @@ echo "---" >> "$CONTEXT_FILE"
 
 # Final model sees all previous context
 claude -p "Synthesize previous analyses:" --model opus < "$CONTEXT_FILE"
+```
+
+## Multimodal Patterns
+
+### Cross-Model Screenshot Review
+
+```bash
+# Same screenshot, two independent eyes (Codex native flag; Gemini @file)
+codex exec -i ui-bug.png "Diagnose this rendering bug" > /tmp/codex-view.txt &
+gemini -p "Diagnose the rendering bug in @ui-bug.png" > /tmp/gemini-view.txt &
+wait
+claude -p "Synthesize these two diagnoses:" < <(cat /tmp/codex-view.txt /tmp/gemini-view.txt)
+```
+
+### Generate → Review Loop
+
+```bash
+# Codex generates an asset, Gemini (or Claude) critiques it
+codex exec "Generate a 512x512 app icon: minimalist compass, save as icon.png" --sandbox workspace-write
+gemini -p "Critique @icon.png as an app icon: contrast, legibility at 32px, uniqueness"
+# Iterate: feed the critique back to Codex with the image attached
+codex exec -i icon.png "Revise this icon per this critique: $(cat critique.txt)" --sandbox workspace-write
+```
+
+### Audio/Video → Text Pipeline
+
+Gemini is the only CLI that ingests audio/video — use it as the transcription/extraction front-end, then route the text anywhere:
+
+```bash
+gemini -p "Transcribe @standup.mp3, list action items" > actions.txt
+claude -p "Turn these into GitHub issues (title + body each):" < actions.txt
 ```
 
 ## Web Search Grounding

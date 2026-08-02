@@ -2,7 +2,7 @@
 
 > **Consumer transition:** As of June 18, 2026, Gemini CLI no longer serves requests for free users or Google AI Pro/Ultra subscribers. Google directs those users to Antigravity CLI. Gemini CLI remains supported for Gemini Code Assist Standard/Enterprise and paid Gemini or Enterprise Agent Platform API keys.
 
-**Audited against:** Gemini CLI `0.45.2` and official Gemini CLI/API documentation on July 12, 2026.
+**Audited against:** Gemini CLI `0.45.2` (installed) plus upstream release notes and Gemini API docs on August 2, 2026. **Upstream is at `0.53.1`** (July 31, 2026) — recent releases are mostly security/infra hardening; flags and multimodal behavior are unchanged since 0.45.x. Update with `npm install -g @google/gemini-cli` if you have working (enterprise/API-key) access.
 
 ## Installation
 
@@ -29,7 +29,7 @@ Version channels: `@latest`, `@preview`, `@nightly`
 gemini -p "Your prompt here"
 
 # With model selection
-gemini -p -m gemini-3.5-flash "prompt"
+gemini -p -m gemini-3.6-flash "prompt"
 gemini -p -m gemini-3.1-pro-preview "prompt"
 
 # JSON output for parsing
@@ -98,17 +98,18 @@ gemini gemma <cmd>        # setup / start / stop / status / logs for local Gemma
 
 ## Available Models
 
-**Current lineup (July 2026), for accounts with valid access:**
+**Current lineup (August 2026), for accounts with valid access:**
 
 | Model ID | Status | Role | Context | Price (per 1M in/out) |
 |----------|--------|------|---------|----------------------|
 | `gemini-3.1-pro-preview` | Preview (current top) | Deepest reasoning, hardest analysis | 1M in / 64K out | $2–4 / $12–18 (tiered at 200K) |
-| `gemini-3.5-flash` | GA | Agentic coding loops, best multimodal understanding | 1M in / 64K out | $1.50 / $9 |
-| `gemini-3-flash-preview` | Preview (superseded by 3.5 Flash) | Cheaper multimodal workhorse | 1M in / 64K out | $0.50 / $3 |
-| `gemini-3.1-flash-lite` | GA | Cheapest current-gen; quick tasks | 1M in / 64K out | $0.25 / $1.50 |
+| `gemini-3.6-flash` | GA (July 21, 2026) | New workhorse — ~17% lower token usage than 3.5 Flash | 1M in / 64K out | — (check current pricing) |
+| `gemini-3.5-flash` | GA | Agentic coding loops, strong multimodal understanding | 1M in / 64K out | $1.50 / $9 |
+| `gemini-3.5-flash-lite` | GA (July 21, 2026) | Cheapest/fastest current-gen (~350 tok/s) | 1M in / 64K out | — (check current pricing) |
+| `gemini-3.1-flash-lite` | GA | Previous cheap tier; quick tasks | 1M in / 64K out | $0.25 / $1.50 |
 | `gemini-2.5-pro` / `-flash` / `-flash-lite` | Legacy | Auto-routing fallbacks; 2.5-flash-lite is cheapest overall ($0.10/$0.40) | 1M in | — |
 
-⚠️ `gemini-3-pro-preview` was **shut down March 9, 2026** — use `gemini-3.1-pro-preview` instead. Gemini 3 "Deep Think" is consumer-app-only (no CLI/API model ID); do not route to it.
+⚠️ `gemini-3-pro-preview` was **shut down March 9, 2026** — use `gemini-3.1-pro-preview` instead. Gemini 3.5 Pro is still partner-testing only (no public ID). `temperature`/`top_p`/`top_k` are deprecated on `gemini-3.6-flash` and `gemini-3.5-flash-lite`. Gemini 3 "Deep Think" is consumer-app-only (no CLI/API model ID); do not route to it. `gemini-3.5-flash-cyber` exists but is restricted to a government/trusted-partner pilot.
 
 All Gemini 3.x models are multimodal: text, image, video, audio, and PDF input (text output only).
 
@@ -117,7 +118,7 @@ All Gemini 3.x models are multimodal: text, image, video, audio, and PDF input (
 - **Auto (Gemini 2.5)** - Routes between Gemini 2.5 Pro and Flash where still available.
 - **Manual** - Select a specific model via `/model` or `-m`.
 
-**Recommendation:** Use `auto` unless reproducibility requires a pinned model. Pin `gemini-3.1-pro-preview` for complex reasoning and `gemini-3.5-flash` or `gemini-3.1-flash-lite` for faster/cheaper work. Availability is account-dependent; inspect `/model` for the authoritative list for the current account.
+**Recommendation:** Use `auto` unless reproducibility requires a pinned model. Pin `gemini-3.1-pro-preview` for complex reasoning, `gemini-3.6-flash` for everyday work, and `gemini-3.5-flash-lite` for the cheapest/fastest tier. Availability is account-dependent; inspect `/model` for the authoritative list for the current account.
 
 **Quota behavior:** On daily quota exhaustion the CLI prompts to fall back to `gemini-2.5-pro`, retry with backoff, or stop — there is no silent automatic Flash fallback.
 
@@ -140,6 +141,44 @@ All Gemini 3.x models are multimodal: text, image, video, audio, and PDF input (
 | `save_memory` | Persist facts to GEMINI.md |
 | `enter_plan_mode` / `exit_plan_mode` | Planning workflow |
 | `activate_skill` | Load specialized skills |
+
+## Multimodal Capabilities
+
+The strongest multimodal input story of the three tools — the only one that takes audio and video.
+
+| Modality | Input | Output (generation) |
+|----------|-------|---------------------|
+| Image | ✅ `@file.png` in prompt, or path → `read_file`/`read_many_files` | ✅ Official `nanobanana` extension |
+| PDF | ✅ `@file.pdf` / read tools | — |
+| Audio (mp3, wav) | ✅ `@file.mp3` / `read_many_files` | ⚠️ No official TTS extension (API-only models exist) |
+| Video (mp4, mov) | ✅ `@file.mp4` / `read_many_files` | ❌ Veo is API-only, no official CLI extension |
+
+**Input mechanisms** (identical in interactive and `-p` mode):
+- `@path/to/file` inline in the prompt — injects the file as a prompt part. Works with globs and directories (`@src/`), respects `.gitignore`. Handles images, PDF, audio, video.
+- Plain path in the prompt — the model calls `read_file`/`read_many_files` itself. For non-text media, `read_many_files` is the more reliable path (plain `read_file` has historically failed on some audio formats).
+- Files must live inside the workspace or an `--include-directories` path. No dedicated attach flag.
+
+```bash
+gemini -p "Describe @screenshot.png"
+gemini -p "Transcribe and summarize @meeting.mp3"
+gemini -p "What happens in @demo.mp4? List the UI issues you see."
+gemini -p "Compare @before.png and @after.png — what changed?"
+```
+
+**Image generation** — via the official `nanobanana` extension (not core CLI):
+
+```bash
+gemini extensions install https://github.com/gemini-cli-extensions/nanobanana
+```
+
+Provides `/generate`, `/edit`, `/restore`, `/icon`, `/pattern`, `/story`, `/diagram`, and free-form `/nanobanana`. Select the model with the `NANOBANANA_MODEL` env var:
+- `gemini-3.1-flash-image` — "Nano Banana 2", current default tier
+- `gemini-3-pro-image` — "Nano Banana Pro", highest quality
+- `gemini-2.5-flash-image` — original Nano Banana
+
+⚠️ The extension README may still show `-preview` suffixed IDs; those were retired June 25, 2026 — use the GA names above when scripting.
+
+**Audio/video generation:** TTS models (`gemini-2.5-*-preview-tts`) and Veo 3.1 (video) exist in the Gemini API but have no official CLI extension — only community wrappers. Treat as API-only.
 
 ## Sandbox Methods
 
@@ -192,16 +231,15 @@ gemini -r latest
 
 # Use specific model
 gemini -p -m gemini-3.1-pro-preview "Complex analysis:" < data.txt
-gemini -p -m gemini-3.1-flash-lite "Quick check:" < data.txt
+gemini -p -m gemini-3.5-flash-lite "Quick check:" < data.txt
 
 # Start in isolated git worktree (requires experimental.worktrees enabled)
 gemini -w my-feature-branch
 
-# Image / multimodal input — no dedicated flag; reference path in prompt
-# and the built-in read_file tool loads it (supports images, audio, PDF).
-# File must live inside the workspace or an --include-directories path.
-gemini -p "Describe what's in ./screenshot.png"
-gemini -p "Compare ./before.png and ./after.png — what changed?"
+# Image / multimodal input — use @file syntax or a plain path (see
+# "Multimodal Capabilities" above; supports images, PDF, audio, video).
+gemini -p "Describe @screenshot.png"
+gemini -p "Compare @before.png and @after.png — what changed?"
 ```
 
 ## Troubleshooting
