@@ -40,6 +40,7 @@ Claude will orchestrate the appropriate tools and synthesize the results.
 | `gemini` | Google | 1M context, video/audio/PDF input, image generation (nanobanana), research — for enterprise/paid API-key users (Gemini 3.1 Pro / 3.6 Flash) |
 | `codex` | OpenAI | Code review and agentic coding with the GPT-5.6 family (Sol/Terra/Luna); built-in image generation and audio input |
 | `claude` | Anthropic | Security analysis, long-running work with Fable 5, Opus 5 reasoning, and Sonnet 5 daily coding |
+| `agy` (Antigravity) | Google | Gemini-family access for individual Google accounts (free/Pro/Ultra); multi-vendor catalog (Gemini 3.5 Flash / 3.1 Pro, Claude 4.6, GPT-OSS 120B) on a weekly quota |
 
 > **Gemini consumer transition:** Gemini CLI stopped serving free, Google AI Pro, and Google AI Ultra accounts on June 18, 2026. Google directs those users to Antigravity CLI. Gemini CLI remains supported for Gemini Code Assist Standard/Enterprise and paid Gemini or Enterprise Agent Platform API keys.
 
@@ -76,6 +77,9 @@ npm install -g @openai/codex
 
 # Claude (usually already installed)
 npm install -g @anthropic-ai/claude-code
+
+# Antigravity (for individual Google accounts; installs binary `agy`)
+curl -fsSL https://antigravity.google/cli/install.sh | bash   # or: brew install --cask antigravity-cli
 ```
 
 Then authenticate each tool:

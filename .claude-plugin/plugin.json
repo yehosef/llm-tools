@@ -1,6 +1,6 @@
 {
   "name": "llm-tools",
-  "version": "2.8.0",
+  "version": "2.9.0",
   "description": "Multi-model LLM orchestration - route tasks to the right model, run in parallel, synthesize results",
   "repository": "https://github.com/yehosef/llm-tools",
   "author": "yehosef",

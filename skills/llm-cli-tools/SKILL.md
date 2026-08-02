@@ -1,6 +1,6 @@
 ---
 name: llm-cli-tools
-description: Multi-model LLM orchestration - route tasks to the right model, run in parallel, synthesize results. Use when complex tasks benefit from multiple AI perspectives or when specific models have advantages.
+description: Multi-model LLM orchestration - route tasks to the right model, run in parallel, synthesize results. Use whenever the user mentions Gemini, Codex, Claude CLI, or Antigravity (agy) - e.g. "review this with gemini", "check with codex", "ask agy", "get a second opinion from another model" - or when complex tasks benefit from multiple AI perspectives or specific models have advantages.
 ---
 
 # Multi-Model LLM Orchestration
@@ -28,7 +28,7 @@ cat /tmp/g.txt /tmp/cl.txt
 claude -p "Review:" --model sonnet < file.py
 ```
 
-**All three tools support stdin with positional prompts.** `tool "prompt" < file` works for Gemini, Codex, and Claude.
+**All three tools support stdin with positional prompts.** `tool "prompt" < file` works for Gemini, Codex, and Claude. **Antigravity (`agy`) does not** — it silently ignores stdin; use `@file` references instead (see `references/antigravity-cli.md`).
 
 **Gemini `-p` is required for headless mode.** Without `-p`, `gemini "prompt"` starts *interactive* mode when stdin is a TTY. When stdin is redirected (e.g., `< file.py` or a pipe), Gemini auto-detects non-interactive and works either way — but `-p` is the documented, reliable form. Scripts should always use `gemini -p "prompt"`.
 
@@ -43,7 +43,7 @@ claude -p "Review:" --model sonnet < file.py
 - Don't send secrets, credentials, or PII
 - Consider if code is proprietary/sensitive
 
-**Auto-approval modes**: Avoid `--yolo`, `--dangerously-bypass-approvals-and-sandbox`, and `bypassPermissions` unless in a trusted, isolated environment with no secrets. Codex `--full-auto` is deprecated; use an explicit sandbox.
+**Auto-approval modes**: Avoid `--yolo`, `--dangerously-bypass-approvals-and-sandbox`, `bypassPermissions`, and Antigravity's `--dangerously-skip-permissions` / `always-proceed` unless in a trusted, isolated environment with no secrets. Codex `--full-auto` is deprecated; use an explicit sandbox.
 
 ---
 
@@ -144,7 +144,7 @@ command -v gemini >/dev/null && gemini -p "prompt" || echo "Gemini not available
 
 *Claude 1M availability depends on model, provider, and plan. Fable 5, Opus 5, and Opus 4.8 use 1M context on the Anthropic API. Subscription access and Sonnet 1M may require usage credits.
 
-**Claude and Gemini reach 1M context; current Codex GPT-5.6 sessions cap at 272K in the CLI** — cut from 372K on July 13, 2026 (billing-tier boundary; openai/codex#34619 tracks restoration). The older `gpt-5.4` still reaches 1M there but retires Aug 31, 2026. Gemini CLI stopped serving consumer/free, Google AI Pro, and Google AI Ultra accounts on June 18, 2026; enterprise licenses and paid API-key access remain supported.
+**Claude and Gemini reach 1M context; current Codex GPT-5.6 sessions cap at 272K in the CLI** — cut from 372K on July 13, 2026 (billing-tier boundary; openai/codex#34619 tracks restoration). The older `gpt-5.4` still reaches 1M there but retires Aug 31, 2026. Gemini CLI stopped serving consumer/free, Google AI Pro, and Google AI Ultra accounts on June 18, 2026; enterprise licenses and paid API-key access remain supported. Individual accounts get Gemini models through **Antigravity CLI** (`agy`) instead — see `references/antigravity-cli.md`.
 
 **For large context tasks (code review, log analysis, full-repo review):**
 ```bash
@@ -204,6 +204,7 @@ All three tools support stdin with positional prompts:
 | Gemini | ✅ | Stdin appended as context |
 | Claude | ✅ | Stdin appended as context |
 | Codex | ✅ | Stdin appended as `<stdin>` block |
+| Antigravity | ❌ | Stdin silently ignored — use `@file` references |
 
 ### Single File
 
@@ -246,6 +247,7 @@ All tools support session persistence - build context once, ask follow-ups witho
 | Gemini | `gemini -p "prompt" < file` | 1M context, video/audio/PDF input, image gen (nanobanana), research — for supported enterprise/API accounts |
 | Codex | `codex exec "prompt" < file` | Code review and agentic coding (GPT-5.6 family), image gen (built-in), audio input |
 | Claude | `claude -p "prompt" < file` | Fresh context, security analysis, 1M-context review, long autonomous work |
+| Antigravity | `agy -p "prompt"` | Gemini-family lane for individual Google accounts (post-June 2026); multi-vendor (Gemini/Claude 4.6/GPT-OSS), weekly quota |
 
 ## Model Selection
 
@@ -330,4 +332,5 @@ Strategy: Choose based on account access, data policy, and task complexity. Do n
 - `references/gemini-cli.md` - Gemini CLI details
 - `references/codex-cli.md` - Codex CLI details
 - `references/claude-cli.md` - Claude CLI details
+- `references/antigravity-cli.md` - Antigravity CLI (`agy`) — Gemini-family access for individual Google accounts
 - `references/orchestration-patterns.md` - Advanced patterns

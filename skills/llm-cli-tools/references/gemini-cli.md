@@ -260,4 +260,4 @@ gemini -p "Compare @before.png and @after.png — what changed?"
 - Vertex AI: Separate quota per project
 
 ### Fallback Strategy
-For consumer accounts, migrate to Antigravity CLI. If Gemini is unavailable in an orchestration workflow, try Claude with `--model sonnet` for similar speed or Codex for code-specific tasks.
+For consumer/individual accounts, migrate to Antigravity CLI (`agy`) — see `antigravity-cli.md` for setup and flag mapping. If Gemini is unavailable in an orchestration workflow, try Claude with `--model sonnet` for similar speed or Codex for code-specific tasks.

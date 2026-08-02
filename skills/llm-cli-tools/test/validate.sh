@@ -90,6 +90,20 @@ else
   skip "claude" "not installed"
 fi
 
+HAS_AGY=false
+if command -v agy >/dev/null 2>&1; then
+  pass "agy installed ($(agy --version 2>&1 | head -1))"
+  # Live tests need a signed-in session; `agy models` fails fast when signed out
+  AGY_MODELS=$(run_verbose 15 agy models || true)
+  if [ -n "$AGY_MODELS" ] && ! echo "$AGY_MODELS" | grep -qi "sign in"; then
+    HAS_AGY=true
+  else
+    skip "agy live calls" "not signed in — run \`agy\` once to authenticate"
+  fi
+else
+  skip "agy (Antigravity)" "not installed"
+fi
+
 echo ""
 
 # -------------------------------------------------------------------
@@ -134,6 +148,17 @@ if $HAS_CLAUDE; then
   fi
 else
   skip "claude basic prompt" "not available"
+fi
+
+if $HAS_AGY; then
+  RESULT=$(run_quiet 90 agy -p "Reply with ONLY the word: $NEEDLE" || true)
+  if echo "$RESULT" | grep -q "$NEEDLE"; then
+    pass "agy basic prompt"
+  else
+    fail "agy basic prompt" "needle not found. Got: $(echo "$RESULT" | tail -3)"
+  fi
+else
+  skip "agy basic prompt" "not available or not signed in"
 fi
 
 echo ""
@@ -206,6 +231,17 @@ if $HAS_CODEX; then
   fi
 fi
 
+# Test: agy does NOT read stdin (verified 2026-08-02) — docs say use @file instead.
+# If this ever starts passing content through, the docs are stale.
+if $HAS_AGY; then
+  RESULT=$(run_quiet 90 bash -c 'agy -p "'"$LOOKUP_PROMPT"'" < "'"$TMPFILE"'"' || true)
+  if echo "$RESULT" | grep -qi "$SECRET"; then
+    fail "agy stdin (docs say unsupported)" "stdin now reaches the model — update antigravity-cli.md and SKILL.md stdin tables"
+  else
+    pass "agy ignores stdin (matches documented behavior — use @file instead)"
+  fi
+fi
+
 echo ""
 
 # -------------------------------------------------------------------
@@ -216,7 +252,7 @@ echo "-------------------------------------------------------------------"
 # surfaces that rot early. Update both docs and these assertions together.
 
 DOCS_CODEX_DEFAULTS="gpt-5.6-sol gpt-5.6-terra gpt-5.6-luna gpt-5.5"  # GPT-5.6 family is current; user config may intentionally override it
-DOCS_CLAUDE_CURRENT_IDS="claude-fable-5 claude-opus-4-8 claude-opus-4-7 claude-sonnet-5 claude-sonnet-4-6 claude-haiku-4-5"
+DOCS_CLAUDE_CURRENT_IDS="claude-fable-5 claude-opus-5 claude-opus-4-8 claude-opus-4-7 claude-sonnet-5 claude-sonnet-4-6 claude-haiku-4-5"
 
 if $HAS_GEMINI; then
   RESULT=$(run_quiet 60 gemini -p "Say OK" || true)
