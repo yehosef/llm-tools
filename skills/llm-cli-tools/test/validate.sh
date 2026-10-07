@@ -29,7 +29,7 @@ run_quiet() {
   # Run in background, kill if it exceeds timeout
   "$@" > "$tmpout" 2>/dev/null &
   local pid=$!
-  ( sleep "$secs" && kill "$pid" 2>/dev/null ) &
+  ( sleep "$secs" && kill "$pid" 2>/dev/null ) >/dev/null 2>&1 &
   local watcher=$!
   if wait "$pid" 2>/dev/null; then
     kill "$watcher" 2>/dev/null; wait "$watcher" 2>/dev/null
@@ -47,7 +47,7 @@ run_verbose() {
   tmpout=$(mktemp)
   "$@" > "$tmpout" 2>&1 &
   local pid=$!
-  ( sleep "$secs" && kill "$pid" 2>/dev/null ) &
+  ( sleep "$secs" && kill "$pid" 2>/dev/null ) >/dev/null 2>&1 &
   local watcher=$!
   if wait "$pid" 2>/dev/null; then
     kill "$watcher" 2>/dev/null; wait "$watcher" 2>/dev/null
@@ -251,8 +251,13 @@ echo "-------------------------------------------------------------------"
 # what the docs claim, the skill is already stale. Failing loudly here
 # surfaces that rot early. Update both docs and these assertions together.
 
-DOCS_CODEX_DEFAULTS="gpt-5.6-sol gpt-5.6-terra gpt-5.6-luna gpt-5.5"  # GPT-5.6 family is current; user config may intentionally override it
-DOCS_CLAUDE_CURRENT_IDS="claude-fable-5 claude-opus-5 claude-opus-4-8 claude-opus-4-7 claude-sonnet-5 claude-sonnet-4-6 claude-haiku-4-5"
+# Verified 2026-10-07 (Codex 0.160.1, Claude Code 2.1.292)
+DOCS_CODEX_ACCOUNT_DEFAULT="gpt-6.1-sol"   # what `codex exec` picks with no `model` in config.toml
+DOCS_CODEX_KNOWN="gpt-6.1-sol gpt-6-astra gpt-6-sol gpt-6-luna gpt-5.6-sol gpt-5.6-terra gpt-5.6-luna"  # a user config may pick any of these
+# alias=expected-full-id (fable skipped: ~10x the cost of sonnet per call)
+DOCS_CLAUDE_ALIASES="opus=claude-opus-5-5 sonnet=claude-sonnet-5-5 haiku=claude-haiku-4-5-20251001"
+# Lean flags documented in claude-cli.md for cheap, clean-context calls
+CLAUDE_LEAN="--safe-mode --tools '' --no-session-persistence"
 
 if $HAS_GEMINI; then
   RESULT=$(run_quiet 60 gemini -p "Say OK" || true)
@@ -273,53 +278,80 @@ if $HAS_GEMINI; then
 fi
 
 if $HAS_CODEX; then
-  RESULT=$(run_verbose 60 codex exec "Say OK" || true)
+  # Account default, ignoring ~/.codex/config.toml (which may pin an older model on purpose)
+  RESULT=$(run_verbose 60 codex exec --ignore-user-config --skip-git-repo-check -s read-only "Say OK" || true)
   MODEL=$(echo "$RESULT" | grep "^model:" | head -1 | sed 's/model: //')
-  if [ -n "$MODEL" ]; then
-    OK=false
-    for want in $DOCS_CODEX_DEFAULTS; do
-      [ "$MODEL" = "$want" ] && OK=true && break
-    done
-    if $OK; then
-      pass "codex default model ($MODEL matches docs)"
-    else
-      fail "codex default model" "got '$MODEL', docs expect one of: $DOCS_CODEX_DEFAULTS — update SKILL.md/codex-cli.md/README.md"
-    fi
+  if [ "$MODEL" = "$DOCS_CODEX_ACCOUNT_DEFAULT" ]; then
+    pass "codex account default model ($MODEL matches docs)"
+  elif [ -n "$MODEL" ]; then
+    fail "codex account default model" "got '$MODEL', docs say $DOCS_CODEX_ACCOUNT_DEFAULT — update SKILL.md/codex-cli.md/README.md"
   else
-    fail "codex default model" "could not detect model from output"
+    fail "codex account default model" "could not detect model from output"
   fi
 
-  # Assert --yolo is NOT claimed to exist if the installed CLI doesn't have it
-  if codex --help 2>&1 | grep -q -- "--yolo"; then
-    pass "codex --yolo flag present in this build"
+  # Every documented current model must still be in the live catalog
+  CATALOG=$(codex debug models 2>/dev/null | grep -oE '"slug":"[^"]+"' | sed 's/"slug":"//; s/"$//' | tr '\n' ' ')
+  if [ -n "$CATALOG" ]; then
+    MISSING=""
+    for want in $DOCS_CODEX_KNOWN; do
+      echo " $CATALOG " | grep -q " $want " || MISSING="$MISSING $want"
+    done
+    if [ -z "$MISSING" ]; then
+      pass "codex catalog contains all documented models"
+    else
+      fail "codex catalog" "documented but missing:$MISSING — update codex-cli.md"
+    fi
   else
-    pass "codex --yolo absent in this build (use --dangerously-bypass-approvals-and-sandbox)"
+    skip "codex catalog" "\`codex debug models\` returned nothing"
+  fi
+
+  # --search is a global flag: `codex --search exec` parses, `codex exec --search` does not
+  if codex --search exec --help >/dev/null 2>&1 && ! codex exec --search --help >/dev/null 2>&1; then
+    pass "codex --search must precede exec (matches docs)"
+  else
+    fail "codex --search placement" "parsing changed — update the web-search examples"
+  fi
+
+  # Removed flags the docs tell people not to use
+  if codex exec --full-auto --help >/dev/null 2>&1; then
+    fail "codex --full-auto" "flag is accepted again — docs say it was removed"
+  else
+    pass "codex exec --full-auto rejected (matches docs)"
   fi
 fi
 
 if $HAS_CLAUDE; then
-  # Probe actual model used via JSON output's modelUsage map
-  RESULT=$(run_quiet 30 claude -p "Reply ONLY: OK" --output-format json || true)
-  USED_MODEL=$(echo "$RESULT" | grep -oE 'claude-(fable|opus|sonnet|haiku)-[0-9-]+' | sort -u | tr '\n' ' ')
-  if [ -n "$USED_MODEL" ]; then
-    OK=false
-    for want in $DOCS_CLAUDE_CURRENT_IDS; do
-      echo "$USED_MODEL" | grep -q "$want" && OK=true && break
-    done
-    if $OK; then
-      pass "claude default model ($USED_MODEL matches docs)"
+  # Each alias must resolve to the documented full ID (read from modelUsage in JSON output)
+  for pair in $DOCS_CLAUDE_ALIASES; do
+    alias=${pair%%=*}; want=${pair#*=}
+    RESULT=$(run_quiet 60 bash -c "claude -p 'Reply ONLY: OK' --model $alias --output-format json $CLAUDE_LEAN < /dev/null" || true)
+    # modelUsage keys only (a "canonicalModel" field also carries an undated ID)
+    GOT=$(echo "$RESULT" | grep -oE '"claude-(fable|opus|sonnet|haiku)-[0-9a-z-]+":\{"inputTokens"' | cut -d'"' -f2 | sort -u | tr '\n' ' ' | sed 's/ $//')
+    if [ "$GOT" = "$want" ]; then
+      pass "claude alias $alias → $GOT"
+    elif [ -n "$GOT" ]; then
+      fail "claude alias $alias" "resolves to '$GOT', docs say $want — refresh claude-cli.md and SKILL.md"
     else
-      fail "claude default model" "got '$USED_MODEL', docs recognize: $DOCS_CLAUDE_CURRENT_IDS — refresh claude-cli.md"
+      skip "claude alias $alias" "could not parse modelUsage from JSON output"
     fi
-  else
-    skip "claude model detection" "could not parse modelUsage from JSON output"
-  fi
+  done
 
   # Assert --effort exposes xhigh in the current CLI.
   if claude --help 2>&1 | tr '\n' ' ' | grep -q -- "--effort.*xhigh"; then
     pass "claude --effort supports xhigh"
   else
     fail "claude --effort xhigh" "not in help — docs claim xhigh support, CLI disagrees"
+  fi
+
+  # Lean mode keeps the prompt small (docs claim ~2.5K tokens vs ~29K default)
+  RESULT=$(run_quiet 60 bash -c "claude -p 'Reply ONLY: OK' --model haiku --output-format json $CLAUDE_LEAN < /dev/null" || true)
+  TOKENS=$(echo "$RESULT" | grep -oE '"(input_tokens|cache_creation_input_tokens|cache_read_input_tokens)":[0-9]+' | head -3 | grep -oE '[0-9]+$' | paste -sd+ - | bc 2>/dev/null)
+  if [ -n "$TOKENS" ] && [ "$TOKENS" -lt 10000 ]; then
+    pass "claude lean mode prompt is small (~$TOKENS input tokens)"
+  elif [ -n "$TOKENS" ]; then
+    fail "claude lean mode" "$TOKENS input tokens — docs promise <10K with --safe-mode --tools ''"
+  else
+    skip "claude lean mode" "could not parse usage"
   fi
 fi
 
@@ -347,6 +379,28 @@ if $HAS_CLAUDE; then
   else
     fail "claude JSON output" "no JSON detected: $(echo "$RESULT" | tail -3)"
   fi
+
+  # --json-schema result lands in .structured_output (docs and escalation pattern rely on this)
+  SCHEMA='{"type":"object","properties":{"status":{"type":"string"}},"required":["status"]}'
+  RESULT=$(run_quiet 60 bash -c "claude -p 'Set status to ok' --model haiku --output-format json --json-schema '$SCHEMA' $CLAUDE_LEAN < /dev/null" || true)
+  if echo "$RESULT" | grep -q '"structured_output":{"status"'; then
+    pass "claude --json-schema → .structured_output"
+  else
+    fail "claude --json-schema" "no structured_output.status: $(echo "$RESULT" | tail -c 200)"
+  fi
+fi
+
+if $HAS_CODEX; then
+  # --output-schema + -o writes one JSON object (docs use this instead of parsing --json JSONL)
+  CX_SCHEMA=$(mktemp); CX_OUT=$(mktemp)
+  echo '{"type":"object","properties":{"status":{"type":"string"}},"required":["status"],"additionalProperties":false}' > "$CX_SCHEMA"
+  run_quiet 90 codex exec --skip-git-repo-check -s read-only -m gpt-6-luna --output-schema "$CX_SCHEMA" -o "$CX_OUT" "Set status to ok" >/dev/null || true
+  if grep -q '"status"' "$CX_OUT" 2>/dev/null; then
+    pass "codex --output-schema + -o writes JSON object"
+  else
+    fail "codex --output-schema" "no status key in output file: $(head -c 200 "$CX_OUT" 2>/dev/null)"
+  fi
+  rm -f "$CX_SCHEMA" "$CX_OUT"
 fi
 
 echo ""

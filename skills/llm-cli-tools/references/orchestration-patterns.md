@@ -15,11 +15,12 @@ TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT INT TERM
 
 # Fire all models
-gemini -p "$PROMPT" > "$TMPDIR/gemini.txt" 2>&1 &
+# stderr goes to .err files — Codex writes its progress log there, which would clutter the answer
+gemini -p "$PROMPT" > "$TMPDIR/gemini.txt" 2> "$TMPDIR/gemini.err" &
 PID_G=$!
-codex exec "$PROMPT" > "$TMPDIR/codex.txt" 2>&1 &
+codex exec "$PROMPT" > "$TMPDIR/codex.txt" 2> "$TMPDIR/codex.err" < /dev/null &
 PID_C=$!
-claude -p "$PROMPT" --model sonnet > "$TMPDIR/claude.txt" 2>&1 &
+claude -p "$PROMPT" --model sonnet > "$TMPDIR/claude.txt" 2> "$TMPDIR/claude.err" < /dev/null &
 PID_CL=$!
 
 # Wait and check exit status
@@ -113,6 +114,8 @@ All three tools support stdin with positional prompts:
 | Claude | File content appended as context ✅ | File content becomes prompt ✅ |
 | Codex | File appended as `<stdin>` block ✅ | File content becomes prompt ✅ |
 
+**Codex/Claude gotcha:** both read stdin until EOF whenever it isn't a terminal. With no input to send, use `< /dev/null`, or an inherited open pipe will stall the call.
+
 **Gemini gotcha:** `echo "prompt" \| gemini -p` **fails** — `-p` requires a positional prompt argument. Use `echo "prompt" \| gemini` (no `-p`), or `gemini -p "prompt" < file` if you want both. For scripts, `gemini -p "prompt"` (with arg) is the most reliable form.
 
 ### Single File
@@ -178,8 +181,9 @@ find src -name "*.py" -mtime -7 \
 # Staged files only
 git diff --cached | claude -p "Review staged changes:" --model opus
 
-# Codex dedicated code review (reviews current repo)
-codex exec review
+# Codex dedicated code review of the current repo
+codex exec review --uncommitted     # staged + unstaged + untracked
+codex exec review --base main       # branch vs main
 ```
 
 ### Git-Diff as Input (PR Review)
@@ -208,8 +212,12 @@ gemini -p "Analyze:" <<< "$CONTENT"
 ```bash
 # Get structured output (stdin for large files)
 gemini -p -o json "Find bugs:" < code.py > bugs.json
-# Claude uses --output-format json
-# Note: codex --json outputs JSONL (one event per line), not single JSON
+# Claude: schema-validated object lands in .structured_output
+claude -p "Find bugs:" --output-format json \
+  --json-schema '{"type":"object","properties":{"bugs":{"type":"array","items":{"type":"string"}}},"required":["bugs"]}' \
+  < code.py | jq '.structured_output' > bugs.json
+# Codex: --json is a JSONL event stream; for one parseable object use --output-schema + -o
+codex exec --output-schema bugs.schema.json -o bugs.json "Find bugs:" < code.py
 
 # Parse with jq
 jq '.bugs[] | .severity' bugs.json
@@ -238,7 +246,7 @@ claude -p "Synthesize these:" --model opus < /tmp/context.txt
 
 ```bash
 # Try a lower-cost model first
-RESULT=$(codex exec -m gpt-5.6-luna "$PROMPT" 2>/dev/null)
+RESULT=$(codex exec -m gpt-6-luna "$PROMPT" 2>/dev/null < /dev/null)
 
 # Only escalate if needed
 if [ $? -ne 0 ] || [ -z "$RESULT" ]; then
@@ -256,12 +264,12 @@ WORDS=$(wc -w <<< "$CONTENT")
 
 if [ "$WORDS" -lt 1000 ]; then
   # Small content: use a fast model
-  codex exec -m gpt-5.6-luna "$PROMPT"
+  codex exec -m gpt-6-luna "$PROMPT"
 elif [ "$WORDS" -lt 130000 ]; then
   # Medium (<~100K tokens): any model works
   codex exec "$PROMPT"
 else
-  # Large (>100K tokens): Codex CLI caps at 272K; above that use a 1M model
+  # Large (>100K tokens): Codex CLI defaults to a 272K window; Claude opus has 1M
   claude -p "$PROMPT" --model opus
 fi
 ```
@@ -300,8 +308,9 @@ fi
 # Concatenate source files for full-repo review
 find src -name "*.py" -exec cat {} + > /tmp/all-src.txt
 gemini -p "Review this codebase for bugs and improvements:" < /tmp/all-src.txt
-# Or with Codex for code-specialized review (fits within ~250K tokens)
-codex exec -m gpt-5.6-sol "Review this codebase:" < /tmp/all-src.txt
+# Or with Codex (default window ~250K usable; raise it for bigger bundles, at higher cost)
+codex exec "Review this codebase:" < /tmp/all-src.txt
+codex exec -c model_context_window=872000 "Review this codebase:" < /tmp/all-src.txt
 ```
 
 ### Complexity-Based Routing (3-Tier)
@@ -310,15 +319,15 @@ Route tasks to appropriate model tier based on complexity, not just size.
 
 **Tier 1 - Fast/Cheap** (simple tasks):
 - Syntax checks, formatting, simple validation
-- Use: `gemini -p -m gemini-3.5-flash-lite`, `claude --model haiku`, `codex exec -m gpt-5.6-luna`
+- Use: `gemini -p -m gemini-3.5-flash-lite`, `claude --model haiku`, `codex exec -m gpt-6-luna`
 
 **Tier 2 - Balanced** (medium complexity):
 - Code review, refactoring suggestions, documentation
-- Use: `gemini -p -m gemini-3.6-flash`, `claude --model sonnet`, `codex exec -m gpt-5.6-terra`
+- Use: `gemini -p -m gemini-3.6-flash`, `claude --model sonnet`, `codex exec` (default `gpt-6.1-sol`)
 
 **Tier 3 - Quality** (complex reasoning):
 - Architecture decisions, security audits, complex debugging
-- Use: `gemini -p -m gemini-3.1-pro-preview`, `claude --model opus --effort xhigh` (or `max`), `codex exec -m gpt-5.6-sol`
+- Use: `gemini -p -m gemini-3.1-pro-preview`, `claude --model opus --effort xhigh` (or `max`), `codex exec -m gpt-6-astra` (Plus/Pro) or `codex exec -c model_reasoning_effort='"xhigh"'`
 
 ```bash
 #!/bin/bash
@@ -330,7 +339,7 @@ PROMPT="$2"
 case "$TASK_TYPE" in
   "format"|"lint"|"validate"|"simple")
     # Tier 1: Fast/cheap
-    codex exec -m gpt-5.6-luna "$PROMPT" || claude -p "$PROMPT" --model haiku
+    codex exec -m gpt-6-luna "$PROMPT" || claude -p "$PROMPT" --model haiku
     ;;
   "review"|"refactor"|"document"|"medium")
     # Tier 2: Balanced
@@ -338,7 +347,7 @@ case "$TASK_TYPE" in
     ;;
   "security"|"architecture"|"debug"|"complex")
     # Tier 3: Quality - use reasoning model
-    codex exec -m gpt-5.6-sol "$PROMPT" || claude -p "$PROMPT" --model opus
+    codex exec -m gpt-6-astra "$PROMPT" || claude -p "$PROMPT" --model opus
     ;;
   *)
     # Default: balanced
@@ -429,13 +438,14 @@ gemini --delete-session 5           # Clean up old sessions
 codex  # Start interactive, explore codebase
 
 # Resume later with full context preserved
-codex resume
+codex resume --last          # or `codex resume` for a picker
 
 # Fork a session to explore a tangent without losing the original
-codex fork
+codex fork --last
 
-# Non-interactive sessions can also be resumed
-codex exec "Review src/" && codex exec resume "Now check the tests"
+# Non-interactive sessions can also be resumed or forked
+codex exec "Review src/" && codex exec resume --last "Now check the tests"
+codex exec fork <session-id> "Try a different approach"
 ```
 
 **Claude sessions:**
@@ -445,7 +455,11 @@ codex exec "Review src/" && codex exec resume "Now check the tests"
 claude -c "Follow up on the review"
 
 # Resume specific session by ID
-claude -r <session-id> "What about the auth module?"
+claude -r <session-id> -p "What about the auth module?"
+
+# Pin the session ID up front so a script can resume it later
+SID=$(uuidgen); claude -p "Review src/" --session-id "$SID" < /dev/null
+claude -r "$SID" -p "Now check the tests" < /dev/null
 ```
 
 ### Session Strategy for Large Reviews
@@ -486,7 +500,7 @@ gemini -i "Review this project for security issues"
 INITIAL=$(gemini -p "Summarize:" < data.txt)
 
 # Hand off to reasoning model for deep analysis
-DEEP=$(codex exec -m gpt-5.6-sol "Given this summary, what are the implications?" <<< "$INITIAL")
+DEEP=$(codex exec "Given this summary, what are the implications?" <<< "$INITIAL")
 
 # Final synthesis with quality model (heredoc for safety)
 claude -p "Create final report from:" --model opus <<< "$DEEP"
@@ -515,7 +529,7 @@ claude -p "Synthesize previous analyses:" --model opus < "$CONTEXT_FILE"
 
 ```bash
 # Same screenshot, two independent eyes (Codex native flag; Gemini @file)
-codex exec -i ui-bug.png "Diagnose this rendering bug" > /tmp/codex-view.txt &
+codex exec "Diagnose this rendering bug" -i ui-bug.png > /tmp/codex-view.txt &   # prompt before -i
 gemini -p "Diagnose the rendering bug in @ui-bug.png" > /tmp/gemini-view.txt &
 wait
 claude -p "Synthesize these two diagnoses:" < <(cat /tmp/codex-view.txt /tmp/gemini-view.txt)
@@ -528,7 +542,7 @@ claude -p "Synthesize these two diagnoses:" < <(cat /tmp/codex-view.txt /tmp/gem
 codex exec "Generate a 512x512 app icon: minimalist compass, save as icon.png" --sandbox workspace-write
 gemini -p "Critique @icon.png as an app icon: contrast, legibility at 32px, uniqueness"
 # Iterate: feed the critique back to Codex with the image attached
-codex exec -i icon.png "Revise this icon per this critique: $(cat critique.txt)" --sandbox workspace-write
+codex exec "Revise this icon per this critique: $(cat critique.txt). Save as icon-v2.png" -i icon.png --sandbox workspace-write
 ```
 
 ### Audio/Video → Text Pipeline
@@ -548,8 +562,9 @@ Both Gemini and Codex have built-in web search for real-time information.
 # Gemini - Google Search grounding (built-in tool, auto-used)
 gemini -p "What are the latest security advisories for Django 5.x?"
 
-# Codex - web search (explicit flag)
-codex exec --search "What's the recommended way to handle auth in Next.js 15?"
+# Codex - live web search: --search is a global flag and must come BEFORE `exec`
+codex --search exec "What's the recommended way to handle auth in Next.js 16?"
+# (equivalent: codex exec -c web_search='"live"' "…"; `codex exec --search` errors)
 
 # Combine: research with web, then code with context
 RESEARCH=$(gemini -p "Latest best practices for Python async error handling")
@@ -562,7 +577,8 @@ All three tools support MCP (Model Context Protocol) servers. Configure once, us
 
 ```bash
 # Codex MCP management
-codex mcp add my-server --command "node server.js"
+codex mcp add my-server -- node server.js          # stdio server
+codex mcp add my-http --url https://example.com/mcp # streamable HTTP server
 codex mcp list
 codex mcp remove my-server
 
@@ -571,10 +587,9 @@ gemini  # then /mcp to manage
 
 # Claude MCP (via config)
 claude --mcp-config mcp-servers.json -p "Use the database tool to query users"
-
-# Run Codex itself as an MCP server for other tools
-codex mcp-server  # experimental
 ```
+
+`codex mcp-server` (Codex as an MCP server for other tools) was removed in Codex 0.154; OpenAI points to `codex app-server` instead.
 
 ## Error Handling
 
@@ -665,8 +680,12 @@ fi
 
 ```bash
 # Ask models to rate confidence (stdin for file)
+cat > /tmp/conf.schema.json <<'JSON'
+{"type":"object","properties":{"review":{"type":"string"},"confidence":{"type":"integer"}},"required":["review","confidence"],"additionalProperties":false}
+JSON
 gemini -p -o json "Rate your confidence (0-100) in this code review:" < code.py > /tmp/g.json
-codex exec --json "Rate your confidence (0-100) in this code review:" < code.py > /tmp/c.json
+# Codex: --output-schema + -o gives one JSON object (--json would give a JSONL event stream)
+codex exec --output-schema /tmp/conf.schema.json -o /tmp/c.json "Review this code and rate your confidence (0-100):" < code.py
 
 # Parse and compare
 G_CONF=$(jq '.confidence' /tmp/g.json)
@@ -728,13 +747,15 @@ if [ "$CONF" -ge "$THRESHOLD" ]; then
   exit 0
 fi
 
-# Tier 2: Balanced
+# Tier 2: Balanced — --json-schema puts the parsed object in .structured_output
 echo "Escalating to Sonnet (confidence was $CONF%)..."
-RESULT=$(claude -p "Rate confidence 0-100 and answer: $PROMPT" --model sonnet --output-format json 2>/dev/null)
-CONF=$(echo "$RESULT" | jq -r '.confidence // 0')
+RESULT=$(claude -p "Answer and rate your confidence 0-100: $PROMPT" --model sonnet --output-format json \
+  --json-schema '{"type":"object","properties":{"answer":{"type":"string"},"confidence":{"type":"integer"}},"required":["answer","confidence"]}' \
+  < /dev/null 2>/dev/null)
+CONF=$(echo "$RESULT" | jq -r '.structured_output.confidence // 0')
 
 if [ "$CONF" -ge "$THRESHOLD" ]; then
-  echo "$RESULT" | jq -r '.answer'
+  echo "$RESULT" | jq -r '.structured_output.answer'
   exit 0
 fi
 

@@ -117,7 +117,7 @@ claude-opus-4-6-thinking
 gpt-oss-120b-medium
 ```
 
-Slugs bake the effort level in (`-high`/`-medium`/`-low`) and are accepted by `--model`. `gemini-3.6-flash` (GA July 21, 2026) is present — Antigravity tracks current Gemini releases. The Claude versions trail the Anthropic API's current lineup (Sonnet 5 / Opus 5) — for frontier Claude, use the `claude` CLI directly.
+Slugs bake the effort level in (`-high`/`-medium`/`-low`) and are accepted by `--model`. `gemini-3.6-flash` (GA July 21, 2026) is present — Antigravity tracks current Gemini releases. The Claude versions trail the Anthropic API's current lineup (Sonnet 5.5 / Opus 5.5 as of Oct 2026) — for frontier Claude, use the `claude` CLI directly.
 
 ## Quotas
 

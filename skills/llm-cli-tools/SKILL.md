@@ -1,11 +1,11 @@
 ---
 name: llm-cli-tools
-description: Multi-model LLM orchestration - route tasks to the right model, run in parallel, synthesize results. Use whenever the user mentions Gemini, Codex, Claude CLI, or Antigravity (agy) - e.g. "review this with gemini", "check with codex", "ask agy", "get a second opinion from another model" - or when complex tasks benefit from multiple AI perspectives or specific models have advantages.
+description: Multi-model LLM orchestration - route tasks to the right model, run in parallel, synthesize results. Use whenever the user mentions Gemini, Codex, ChatGPT / GPT / OpenAI models, Claude CLI, or Antigravity (agy) - e.g. "review this with gemini", "check with codex", "ask ChatGPT", "what does GPT think", "ask agy", "get a second opinion from another model" - or when complex tasks benefit from multiple AI perspectives or specific models have advantages. Also use when the user asks to generate, draw, or edit a raster image (photo, illustration, logo, icon, hero image, mockup, sprite, transparent PNG) - Claude can't make bitmaps, but Codex has built-in image generation.
 ---
 
 # Multi-Model LLM Orchestration
 
-Coordinate Gemini, Codex, and Claude CLI tools.
+Coordinate Gemini, Codex (OpenAI / ChatGPT models), and Claude CLI tools.
 
 ## Quick Start (Simple Usage)
 
@@ -24,13 +24,35 @@ claude -p "Review:" --model sonnet < file.py > /tmp/cl.txt &
 wait
 cat /tmp/g.txt /tmp/cl.txt
 
-# "Get a second opinion with Claude"
-claude -p "Review:" --model sonnet < file.py
+# "Get a second opinion with Claude" (clean context: no CLAUDE.md/skills/MCP, ~2.5K-token prompt)
+claude -p "Review:" --model sonnet --safe-mode --tools '' < file.py
 ```
 
 **All three tools support stdin with positional prompts.** `tool "prompt" < file` works for Gemini, Codex, and Claude. **Antigravity (`agy`) does not** — it silently ignores stdin; use `@file` references instead (see `references/antigravity-cli.md`).
 
 **Gemini `-p` is required for headless mode.** Without `-p`, `gemini "prompt"` starts *interactive* mode when stdin is a TTY. When stdin is redirected (e.g., `< file.py` or a pipe), Gemini auto-detects non-interactive and works either way — but `-p` is the documented, reliable form. Scripts should always use `gemini -p "prompt"`.
+
+**Not feeding stdin? Close it.** `codex exec` and `claude -p` both wait for stdin to close when it isn't a terminal. If the caller's stdin is an open pipe they hang, so add `< /dev/null` when there's no input file.
+
+### "Make me an image" → Codex
+
+Claude can't generate raster images. Codex can, with no extra setup or API key (built-in `image_gen` tool, gpt-image-2):
+
+```bash
+# Generate — needs workspace-write so Codex can copy the result into the project (~1 min)
+codex exec --sandbox workspace-write \
+  "Generate a 1024x1024 flat minimalist icon of a lighthouse, save it as ./assets/lighthouse.png" < /dev/null
+
+# Edit an existing image — attach it with -i AFTER the prompt, save under a new name
+codex exec --sandbox workspace-write \
+  "Make the background transparent and the door green. Save as ./assets/lighthouse-v2.png" \
+  -i assets/lighthouse.png < /dev/null
+```
+
+- Name the output path in the prompt. Without one, the file stays under `~/.codex/generated_images/<session>/`.
+- One call per distinct image. For variants, say how many and list the filenames.
+- Afterwards, look at the result yourself (Read the PNG) before reporting back, and iterate with one targeted change per call.
+- For icons/diagrams that should be SVG or match an existing vector set in the repo, write SVG directly instead.
 
 **That's it for simple requests.** Advanced patterns (routing, escalation, consensus) are below for complex tasks.
 
@@ -43,7 +65,7 @@ claude -p "Review:" --model sonnet < file.py
 - Don't send secrets, credentials, or PII
 - Consider if code is proprietary/sensitive
 
-**Auto-approval modes**: Avoid `--yolo`, `--dangerously-bypass-approvals-and-sandbox`, `bypassPermissions`, and Antigravity's `--dangerously-skip-permissions` / `always-proceed` unless in a trusted, isolated environment with no secrets. Codex `--full-auto` is deprecated; use an explicit sandbox.
+**Auto-approval modes**: Avoid `--yolo`, `--dangerously-bypass-approvals-and-sandbox`, `bypassPermissions`, and Antigravity's `--dangerously-skip-permissions` / `always-proceed` unless in a trusted, isolated environment with no secrets. Codex `--full-auto` has been removed; use an explicit `--sandbox` (and `--approve-for-me` for reviewer-model approvals).
 
 ---
 
@@ -59,17 +81,17 @@ claude -p "Review:" --model sonnet < file.py
 
 | Task Type | Primary | Why | Backup |
 |-----------|---------|-----|--------|
-| Large context (>250k) | Claude opus/sonnet | 1M context on eligible plans; Codex CLI now caps at 272K | Gemini 3.1 Pro / 3.6 Flash (1M) for enterprise/API users |
-| Code review | Codex (`gpt-5.6-sol`) | Current frontier coding model | Claude opus or sonnet |
-| Security audit | Claude opus `--effort xhigh` | Thorough analysis (Opus 5 on Anthropic API) | Codex `gpt-5.6-sol` (high/xhigh) |
-| Quick validation | Codex `gpt-5.6-luna` or Claude haiku | Fast, lower-cost options | Gemini `gemini-3.5-flash-lite` where available |
-| Reasoning/logic | Claude opus or Codex `gpt-5.6-sol` | Strong general reasoning | Gemini `gemini-3.1-pro-preview` |
-| Long autonomous work | Claude fable | Built for long-horizon agentic runs | Codex `gpt-5.6-sol` with `ultra` effort (auto task delegation) |
-| Research | Codex `gpt-5.6-sol --search` | Native live web search | Gemini (Google Search grounding) for enterprise/API users |
-| Full-repo review | Claude opus (1M) or Codex `gpt-5.6-sol` (≤272K) | Context size vs coding specialization tradeoff | Gemini 3.1 Pro (1M) |
-| Image input | Codex (`-i screenshot.png`) | Native flag, fastest path | Claude/Gemini (path or `@file` in prompt) |
+| Large context (>250k) | Claude opus/sonnet | 1M context on every plan (Anthropic API); Codex CLI defaults to 272K | Codex with `-c model_context_window=872000` (higher cost); Gemini 3.1 Pro / 3.6 Flash (1M) for enterprise/API users |
+| Code review | Codex (default `gpt-6.1-sol`, or `codex exec review --uncommitted`) | Current Codex workhorse; dedicated review subcommand | Claude opus or sonnet |
+| Security audit | Claude opus `--effort xhigh` | Thorough analysis (Opus 5.5) | Codex `gpt-6-astra` (Plus/Pro) or `gpt-6.1-sol` at high/xhigh |
+| Quick validation | Codex `gpt-6-luna` or Claude haiku | Fast, lower-cost options | Gemini `gemini-3.5-flash-lite` where available |
+| Reasoning/logic | Claude opus or Codex `gpt-6-astra` | Frontier reasoning tiers | Codex `gpt-6.1-sol` at high effort; Gemini `gemini-3.1-pro-preview` |
+| Long autonomous work | Claude fable (Fable 5.1) | Built for long-horizon agentic runs | Codex `gpt-6.1-sol` or `gpt-6-astra` with `ultra` effort (auto task delegation) |
+| Research | Codex `codex --search exec` (flag goes before `exec`) | Native live web search | Gemini (Google Search grounding) for enterprise/API users |
+| Full-repo review | Claude opus (1M) or Codex (≤272K default, ≤872K raised) | Context size vs coding specialization tradeoff | Gemini 3.1 Pro (1M) |
+| Image input | Codex (`"prompt" -i screenshot.png`) | Native flag, fastest path | Claude/Gemini (path or `@file` in prompt) |
 | Image generation | Codex (built-in `image_gen`, gpt-image-2) | Works out of the box, no extension needed | Gemini `nanobanana` extension (`/generate`) |
-| Audio input | Gemini (`@meeting.mp3`) | Full audio understanding | Codex (audio file inputs since v0.145) |
+| Audio input | Gemini (`@meeting.mp3`) | Full audio understanding | None native — Codex/Claude can't hear audio (Codex may shell out to a local whisper if installed) |
 | Video / PDF input | Gemini (`@demo.mp4`, `@doc.pdf`) | Only tool with video input; strong multimodal | Claude (PDF/images via Read) — video: none |
 
 ## Parallel Execution
@@ -88,11 +110,14 @@ wait
 For structured output, use JSON mode:
 
 ```bash
+# bugs.schema.json: {"type":"object","properties":{"bugs":{"type":"array","items":{"type":"string"}}},"required":["bugs"],"additionalProperties":false}
 gemini -p -o json "Find bugs:" < code.py > /tmp/gemini.json &
-codex exec --json "Find bugs:" < code.py > /tmp/codex.json &
+codex exec --output-schema bugs.schema.json -o /tmp/codex.json "Find bugs:" < code.py > /dev/null &
+claude -p "Find bugs:" --output-format json --json-schema "$(cat bugs.schema.json)" < code.py \
+  | jq '.structured_output' > /tmp/claude.json &
 wait
-# Claude: use --output-format json
-# Note: codex --json emits JSONL events (one per line), not a single JSON document
+# Codex --json is a JSONL event stream, not one document — use --output-schema + -o for a parseable answer
+# Claude --output-format json without a schema puts the answer text in .result
 ```
 
 ## Result Synthesis
@@ -101,7 +126,7 @@ wait
 |-----------|------------|--------|
 | 3/3 agree | HIGH | Accept result |
 | 2/3 agree | MEDIUM | Note dissent, likely accept |
-| All differ | LOW | Use a frontier reasoning model (Claude opus or `gpt-5.6-sol` at high effort) as tiebreaker |
+| All differ | LOW | Use a frontier reasoning model (Claude opus, or Codex `gpt-6-astra` / `gpt-6.1-sol` at high effort) as tiebreaker |
 
 When synthesizing:
 1. Identify common findings across models
@@ -111,7 +136,7 @@ When synthesizing:
 
 ```bash
 # Tie-breaker: feed conflicting outputs to reasoning model
-codex exec -m gpt-5.6-sol "Gemini found X, Codex found Y. Which is correct and why?"
+codex exec -c model_reasoning_effort='"high"' "Gemini found X, Codex found Y. Which is correct and why?" < /dev/null
 ```
 
 ## Error Recovery
@@ -135,16 +160,15 @@ command -v gemini >/dev/null && gemini -p "prompt" || echo "Gemini not available
 | Tool | Model | Input | Output |
 |------|-------|-------|--------|
 | Gemini | `gemini-3.1-pro-preview` / `gemini-3.6-flash` / `gemini-3.5-flash-lite` | 1M tokens | 64K tokens |
-| Codex | `gpt-5.6-sol` / `-terra` / `-luna` | 272K tokens (CLI cap since July 13, 2026; API spec is 1.05M) | 128K tokens |
-| Codex | `gpt-5.4` (legacy — retires Aug 31, 2026) | Up to 1M tokens | 128K tokens |
-| Claude | `fable` (Fable 5) | 1M tokens | 128K tokens |
-| Claude | `opus` (Opus 5 on Anthropic API) | 1M tokens* | 128K tokens |
-| Claude | `sonnet` (Sonnet 5) | 1M tokens* | 128K tokens |
+| Codex | `gpt-6.1-sol` / `gpt-6-astra` / `gpt-6-sol` / `gpt-6-luna` | 272K tokens by default in the CLI; up to 872K with `-c model_context_window=872000` (API spec 1.05M) | 128K tokens |
+| Claude | `fable` (Fable 5.1) | 1M tokens* | 128K tokens |
+| Claude | `opus` (Opus 5.5) | 1M tokens* | 128K tokens |
+| Claude | `sonnet` (Sonnet 5.5) | 1M tokens* | 128K tokens |
 | Claude | `haiku` (4.5) | 200K tokens | 64K tokens |
 
-*Claude 1M availability depends on model, provider, and plan. Fable 5, Opus 5, and Opus 4.8 use 1M context on the Anthropic API. Subscription access and Sonnet 1M may require usage credits.
+*On the Anthropic API, Fable 5.x, Sonnet 5+ and Opus 4.7+ get 1M context on every plan, Pro included, with no `[1m]` suffix (per Claude Code docs; 1M confirmed live on Oct 7, 2026). On Bedrock/Vertex/Foundry, check the resolved model.
 
-**Claude and Gemini reach 1M context; current Codex GPT-5.6 sessions cap at 272K in the CLI** — cut from 372K on July 13, 2026 (billing-tier boundary; openai/codex#34619 tracks restoration). The older `gpt-5.4` still reaches 1M there but retires Aug 31, 2026. Gemini CLI stopped serving consumer/free, Google AI Pro, and Google AI Ultra accounts on June 18, 2026; enterprise licenses and paid API-key access remain supported. Individual accounts get Gemini models through **Antigravity CLI** (`agy`) instead — see `references/antigravity-cli.md`.
+**Claude and Gemini reach 1M context; Codex CLI defaults to 272K.** Raising Codex to 872K via `model_context_window` reportedly works (openai/codex#47805, ~828K usable), but on API billing any request over 272K input tokens is charged 2× input / 1.5× output. Gemini CLI stopped serving consumer/free, Google AI Pro, and Google AI Ultra accounts on June 18, 2026; enterprise licenses and paid API-key access remain supported. Individual accounts get Gemini models through **Antigravity CLI** (`agy`) instead — see `references/antigravity-cli.md`.
 
 **For large context tasks (code review, log analysis, full-repo review):**
 ```bash
@@ -152,7 +176,7 @@ command -v gemini >/dev/null && gemini -p "prompt" || echo "Gemini not available
 claude -p "Review:" --model opus < all-source.txt
 ```
 
-**Auto-routing by size:** If input fits in ~200K, any model works. 200K–250K: any current model except Claude haiku. Above ~250K, use Claude Opus/Sonnet or Gemini 3.x on a plan that includes 1M context (Codex GPT-5.6 caps at 272K raw, ~250K practical).
+**Auto-routing by size:** If input fits in ~200K, any model works. 200K–250K: any current model except Claude haiku. Above ~250K, use Claude Opus/Sonnet (1M) or Gemini 3.x on a plan that includes 1M context; Codex only with a raised `model_context_window` (default ~258K usable).
 
 ## Feeding Files to Models
 
@@ -162,9 +186,9 @@ claude -p "Review:" --model opus < all-source.txt
 
 | Modality | Gemini | Codex | Claude |
 |----------|--------|-------|--------|
-| Image | ✅ `@file.png` or path in prompt | ✅ `-i / --image` flag | ✅ path in prompt (Read tool) |
+| Image | ✅ `@file.png` or path in prompt | ✅ `-i / --image` flag | ✅ path in prompt (Read tool; keep `Read` if you restrict `--tools`) |
 | PDF | ✅ `@file.pdf` | ❌ | ✅ path in prompt (Read tool) |
-| Audio | ✅ `@file.mp3` (mp3/wav) | ✅ audio files (v0.145+); realtime voice in TUI | ❌ |
+| Audio | ✅ `@file.mp3` (mp3/wav) | ❌ not native (realtime voice in TUI only) | ❌ |
 | Video | ✅ `@file.mp4` (mp4/mov) | ❌ | ❌ |
 
 **Generation (output):**
@@ -177,7 +201,7 @@ claude -p "Review:" --model opus < all-source.txt
 
 ```bash
 # Image input
-codex exec -i shot.png "What's wrong in this UI?"
+codex exec "What's wrong in this UI?" -i shot.png   # prompt BEFORE -i (see warning below)
 gemini -p "Describe @shot.png"
 claude -p "Describe what's in ./shot.png"
 
@@ -190,6 +214,8 @@ codex exec "Generate a 1024x1024 lighthouse logo, save it here" --sandbox worksp
 # Gemini: gemini extensions install https://github.com/gemini-cli-extensions/nanobanana
 #         then /generate inside a session (model via NANOBANANA_MODEL env var)
 ```
+
+⚠️ **Codex `-i` eats the prompt:** `-i/--image` takes multiple values, so `codex exec -i shot.png "prompt"` reads the prompt as a second image path and fails with "No prompt provided via stdin". Put the prompt first (`codex exec "prompt" -i shot.png`) or use `--image=shot.png` (comma-separate several).
 
 ⚠️ **`-i` flag collision:** In **Codex**, `-i` means `--image`. In **Gemini**, `-i` means `--prompt-interactive` (run prompt then stay interactive). Don't confuse them — copying a Codex command to Gemini won't attach an image.
 
@@ -205,6 +231,8 @@ All three tools support stdin with positional prompts:
 | Claude | ✅ | Stdin appended as context |
 | Codex | ✅ | Stdin appended as `<stdin>` block |
 | Antigravity | ❌ | Stdin silently ignored — use `@file` references |
+
+Codex and Claude read stdin until it closes whenever it isn't a terminal — with no input file, pass `< /dev/null` so an inherited open pipe can't stall them.
 
 ### Single File
 
@@ -235,7 +263,7 @@ All tools support session persistence - build context once, ask follow-ups witho
 | Tool | Resume | Fork | List Sessions |
 |------|--------|------|---------------|
 | Gemini | `gemini -r latest` | N/A | `gemini --list-sessions` |
-| Codex | `codex resume` | `codex fork` | N/A (auto-saved) |
+| Codex | `codex resume --last` / `codex exec resume --last "prompt"` | `codex fork` / `codex exec fork <id>` | `codex resume` (picker), `codex agents` |
 | Claude | `claude -c` / `claude -r <id>` | `claude -c --fork-session` | `claude -r` (picker) |
 
 **For large codebase review:** Use `gemini -i "prompt"` to load context and stay interactive, or resume later with `gemini -r latest`. Gemini retains sessions for 30 days. Claude supports `--from-pr` to resume sessions linked to PRs.
@@ -245,7 +273,7 @@ All tools support session persistence - build context once, ask follow-ups witho
 | Tool | Command | Best For |
 |------|---------|----------|
 | Gemini | `gemini -p "prompt" < file` | 1M context, video/audio/PDF input, image gen (nanobanana), research — for supported enterprise/API accounts |
-| Codex | `codex exec "prompt" < file` | Code review and agentic coding (GPT-5.6 family), image gen (built-in), audio input |
+| Codex | `codex exec "prompt" < file` | ChatGPT/OpenAI models: code review and agentic coding (GPT-6 family), image gen (built-in), live web search |
 | Claude | `claude -p "prompt" < file` | Fresh context, security analysis, 1M-context review, long autonomous work |
 | Antigravity | `agy -p "prompt"` | Gemini-family lane for individual Google accounts (post-June 2026); multi-vendor (Gemini/Claude 4.6/GPT-OSS), weekly quota |
 
@@ -254,12 +282,15 @@ All tools support session persistence - build context once, ask follow-ups witho
 | Tool | Quality | Fast | Reasoning |
 |------|---------|------|-----------|
 | Gemini | `-m gemini-3.1-pro-preview` | `-m gemini-3.6-flash` or `-m gemini-3.5-flash-lite` | `gemini-3.1-pro-preview` |
-| Codex | `-m gpt-5.6-sol` | `-m gpt-5.6-luna` | `-m gpt-5.6-sol` with `xhigh`/`max`/`ultra` reasoning effort in config |
-| Claude | `--model fable` or `--model opus` | `--model sonnet` or `--model haiku` | `--model opus --effort xhigh` |
+| Codex | default (`gpt-6.1-sol`) or `-m gpt-6-astra` (Plus/Pro) | `-m gpt-6-luna` | `-c model_reasoning_effort='"xhigh"'` (also `max`, `ultra`) |
+| Claude | `--model opus` (or `fable` for long autonomous runs) | `--model sonnet` or `--model haiku` | `--model opus --effort xhigh` |
 
-**Current model snapshot (August 2026):** Gemini: `auto` routing by default; current IDs are `gemini-3.1-pro-preview`, `gemini-3.6-flash` (GA July 21), `gemini-3.5-flash`, `gemini-3.5-flash-lite` (access is account-dependent). Codex: the GPT-5.6 family launched July 9, 2026 — `gpt-5.6-sol` (flagship, the default for most accounts, default effort now `low`), `gpt-5.6-terra` (balanced), `gpt-5.6-luna` (fast/cheap); `gpt-5.5` is legacy and `gpt-5.4`/`gpt-5.4-mini` retire Aug 31, 2026. Claude: `fable` (Fable 5), `opus` (Opus 5, launched late July 2026), `sonnet` (Sonnet 5), and `haiku` (Haiku 4.5). Prefer aliases unless reproducibility requires pinning a full ID.
+**Current model snapshot:**
+- **Codex (verified Oct 7, 2026, CLI 0.160.1):** GPT-6 family — `gpt-6.1-sol` (default workhorse, Sep 29), `gpt-6-astra` (frontier, Sep 3; Plus/Pro), `gpt-6-sol` (previous workhorse), `gpt-6-luna` (fast/cheap). The GPT-5.6 Sol/Terra/Luna models are still listed as older options; `gpt-5.5` retires Oct 14, 2026; `gpt-5.4` is gone. A `model` in `~/.codex/config.toml` overrides the default.
+- **Claude (verified Oct 7, 2026, Claude Code 2.1.292):** `fable` → Fable 5.1, `opus` → Opus 5.5 (also `default`), `sonnet` → Sonnet 5.5, `haiku` → Haiku 4.5 (Haiku 5.5 announced, not yet shipped). Prefer aliases unless reproducibility requires pinning a full ID.
+- **Gemini (last checked Aug 2026):** `auto` routing by default; current IDs are `gemini-3.1-pro-preview`, `gemini-3.6-flash` (GA July 21), `gemini-3.5-flash`, `gemini-3.5-flash-lite` (access is account-dependent).
 
-**Claude effort levels:** `low`, `medium`, `high`, `xhigh`, `max`. Support and defaults vary by active model; use `claude --help` and `/model` for the current account.
+**Effort levels:** Claude `low`→`max` (Haiku has none); Codex `low`→`max`, plus `ultra` (auto task delegation) on Sol/Astra. Defaults differ by model and the docs disagree on some, so pass effort explicitly when it matters.
 
 ## Common Patterns
 
@@ -284,8 +315,8 @@ claude -p "Security audit:" --model opus --effort xhigh < api.py
 # Large file analysis → Gemini
 gemini -p "Analyze this log:" < large-log.txt
 
-# Code optimization → Codex
-codex exec -m gpt-5.6-sol "Optimize this code:" < perf.py
+# Code optimization → Codex (default gpt-6.1-sol)
+codex exec "Optimize this code:" < perf.py
 ```
 
 ### Pattern 3: Fallback Chain
@@ -306,8 +337,8 @@ All three tool families have models with large context windows, but model and ac
 # Gemini handles large context for supported enterprise/API accounts
 gemini -p "Review this large codebase:" < all-source.txt
 
-# Codex recommended model
-codex exec "Review this large codebase:" < all-source.txt
+# Codex: default 272K; raise the window for bigger inputs (costs more above 272K)
+codex exec -c model_context_window=872000 "Review this large codebase:" < all-source.txt
 
 # Claude opus (1M context where available)
 claude -p "Review:" --model opus < all-source.txt
@@ -322,8 +353,8 @@ claude -p "Analyze this summary:" --model opus <<< "$SUMMARY"
 | Tool | Access | Cost Notes |
 |------|-----------|------------|
 | Gemini | Consumer access ended June 18, 2026 | Enterprise licenses and paid API-key access remain; `gemini-3.5-flash-lite` is the cheapest current-gen tier |
-| Codex | Subscription/API dependent | Use `gpt-5.6-luna` ($1/$6 per 1M) or `-terra` ($2.50/$15) for lighter work; `-sol` is $5/$30 |
-| Claude | Subscription/API dependent | Haiku/Sonnet are typically cheaper than Opus/Fable |
+| Codex | Subscription/API dependent | API per 1M in/out: `gpt-6-luna` $0.10/$0.50, `gpt-6.1-sol` $2/$10, `gpt-6-astra` $10/$50. Over 272K input: 2×/1.5× |
+| Claude | Subscription/API dependent | API per 1M in/out: haiku $1/$5, sonnet $2/$10, opus $4/$20, fable $10/$50. Each `claude -p` call also carries ~25–30K tokens of harness prompt unless you use `--safe-mode --tools ''` |
 
 Strategy: Choose based on account access, data policy, and task complexity. Do not assume Gemini CLI is free or available to consumer accounts.
 
